@@ -1,0 +1,183 @@
+package magic
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+)
+
+// Database manages the magic database
+type Database struct {
+	db     *MagicDatabase
+	parser *Parser
+}
+
+// NewDatabase creates a new magic database
+func NewDatabase() *Database {
+	return &Database{
+		parser: NewParser(),
+	}
+}
+
+// Load loads a magic database from file
+func (d *Database) Load(filename string) error {
+	db, err := d.parser.ParseFile(filename)
+	if err != nil {
+		return fmt.Errorf("failed to load magic database: %w", err)
+	}
+	
+	d.db = db
+	return nil
+}
+
+// LoadDefault loads the default system magic database
+func (d *Database) LoadDefault() error {
+	// Try common locations for magic.mgc
+	locations := []string{
+		"/usr/lib/file/magic.mgc",
+		"/usr/share/misc/magic.mgc",
+		"/usr/share/file/magic.mgc",
+		"/etc/magic.mgc",
+		"./magic.mgc",
+	}
+	
+	for _, location := range locations {
+		if _, err := os.Stat(location); err == nil {
+			return d.Load(location)
+		}
+	}
+	
+	return fmt.Errorf("no magic database found in standard locations")
+}
+
+// IsLoaded returns true if a database is loaded
+func (d *Database) IsLoaded() bool {
+	return d.db != nil
+}
+
+// GetDatabase returns the loaded magic database
+func (d *Database) GetDatabase() *MagicDatabase {
+	return d.db
+}
+
+// GetEntries returns all magic entries for a specific set
+func (d *Database) GetEntries(set int) []*MagicEntry {
+	if d.db == nil || set < 0 || set >= MAGIC_SETS {
+		return nil
+	}
+	return d.db.Magic[set]
+}
+
+// GetAllEntries returns all magic entries from all sets
+func (d *Database) GetAllEntries() []*MagicEntry {
+	if d.db == nil {
+		return nil
+	}
+	
+	var entries []*MagicEntry
+	for set := 0; set < MAGIC_SETS; set++ {
+		entries = append(entries, d.db.Magic[set]...)
+	}
+	return entries
+}
+
+// GetEntriesByType returns entries of a specific type
+func (d *Database) GetEntriesByType(fileType uint8) []*MagicEntry {
+	var entries []*MagicEntry
+	
+	for _, entry := range d.GetAllEntries() {
+		if entry.Type == fileType {
+			entries = append(entries, entry)
+		}
+	}
+	
+	return entries
+}
+
+// GetEntriesByMimeType returns entries with a specific MIME type
+func (d *Database) GetEntriesByMimeType(mimeType string) []*MagicEntry {
+	var entries []*MagicEntry
+	
+	for _, entry := range d.GetAllEntries() {
+		if entry.GetMimeType() == mimeType {
+			entries = append(entries, entry)
+		}
+	}
+	
+	return entries
+}
+
+// Stats returns statistics about the loaded database
+func (d *Database) Stats() *DatabaseStats {
+	if d.db == nil {
+		return &DatabaseStats{}
+	}
+	
+	stats := &DatabaseStats{
+		Version:    d.db.Version,
+		TotalSets:  MAGIC_SETS,
+		SetCounts:  make([]uint32, MAGIC_SETS),
+		TypeCounts: make(map[uint8]int),
+	}
+	
+	// Count entries per set
+	for i := 0; i < MAGIC_SETS; i++ {
+		stats.SetCounts[i] = d.db.NMagic[i]
+		stats.TotalEntries += d.db.NMagic[i]
+	}
+	
+	// Count entries by type
+	for _, entry := range d.GetAllEntries() {
+		stats.TypeCounts[entry.Type]++
+	}
+	
+	return stats
+}
+
+// DatabaseStats contains statistics about a magic database
+type DatabaseStats struct {
+	Version      uint32
+	TotalSets    int
+	TotalEntries uint32
+	SetCounts    []uint32
+	TypeCounts   map[uint8]int
+}
+
+// String returns a string representation of the database stats
+func (s *DatabaseStats) String() string {
+	return fmt.Sprintf("Magic Database Stats:\n"+
+		"  Version: %d\n"+
+		"  Total Sets: %d\n"+
+		"  Total Entries: %d\n"+
+		"  Entries per Set: %v\n"+
+		"  Types: %d unique types",
+		s.Version, s.TotalSets, s.TotalEntries, s.SetCounts, len(s.TypeCounts))
+}
+
+// FindMagicFile finds a magic file in common locations
+func FindMagicFile() (string, error) {
+	locations := []string{
+		"/usr/lib/file/magic.mgc",
+		"/usr/share/misc/magic.mgc", 
+		"/usr/share/file/magic.mgc",
+		"/etc/magic.mgc",
+		"./magic.mgc",
+	}
+	
+	// Also check relative to executable
+	if execPath, err := os.Executable(); err == nil {
+		execDir := filepath.Dir(execPath)
+		locations = append(locations, 
+			filepath.Join(execDir, "magic.mgc"),
+			filepath.Join(execDir, "..", "share", "magic.mgc"),
+		)
+	}
+	
+	for _, location := range locations {
+		if _, err := os.Stat(location); err == nil {
+			return location, nil
+		}
+	}
+	
+	return "", fmt.Errorf("magic file not found in any standard location")
+}
