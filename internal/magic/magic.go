@@ -1,0 +1,164 @@
+package magic
+
+import (
+	"embed"
+	"fmt"
+	"io/fs"
+	"os"
+)
+
+//go:embed all:magicdata
+var embeddedMagicFS embed.FS
+
+// Options controls the behavior of file identification.
+type Options struct {
+	MimeType bool
+	Brief    bool
+}
+
+// FileIdentifier is the main entry point for file identification.
+type FileIdentifier struct {
+	set     *MagicSet
+	matcher *Matcher
+	options Options
+}
+
+// New creates a FileIdentifier loading magic from the embedded database.
+func New(opts Options) (*FileIdentifier, error) {
+	magicFS, err := fs.Sub(embeddedMagicFS, "magicdata/Magdir")
+	if err != nil {
+		return nil, fmt.Errorf("embedded magic data: %w", err)
+	}
+	return NewFromFS(magicFS, opts)
+}
+
+// NewFromFS creates a FileIdentifier loading magic from a filesystem.
+func NewFromFS(magicFS fs.FS, opts Options) (*FileIdentifier, error) {
+	set := &MagicSet{NamedRules: make(map[string]int)}
+
+	entries, err := fs.ReadDir(magicFS, ".")
+	if err != nil {
+		return nil, fmt.Errorf("reading magic dir: %w", err)
+	}
+
+	for _, de := range entries {
+		if de.IsDir() {
+			continue
+		}
+		data, err := fs.ReadFile(magicFS, de.Name())
+		if err != nil {
+			continue
+		}
+		parsed, err := ParseMagicBytes(de.Name(), data)
+		if err != nil {
+			continue
+		}
+		set.Entries = append(set.Entries, parsed...)
+	}
+
+	set.buildGroups()
+
+	return &FileIdentifier{
+		set:     set,
+		matcher: NewMatcher(set),
+		options: opts,
+	}, nil
+}
+
+// NewFromDir creates a FileIdentifier loading magic from a directory path.
+func NewFromDir(dir string, opts Options) (*FileIdentifier, error) {
+	set, err := ParseMagicDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	return &FileIdentifier{
+		set:     set,
+		matcher: NewMatcher(set),
+		options: opts,
+	}, nil
+}
+
+// IdentifyFile identifies a file by path.
+func (fi *FileIdentifier) IdentifyFile(path string) (string, error) {
+	// Check filesystem magic first
+	info, err := os.Lstat(path)
+	if err != nil {
+		return "", err
+	}
+
+	if !info.Mode().IsRegular() {
+		return identifyFS(info), nil
+	}
+
+	if info.Size() == 0 {
+		return "empty", nil
+	}
+
+	// Read file content
+	maxBytes := 1024 * 1024 // 1MB max
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	buf := make([]byte, maxBytes)
+	n, _ := f.Read(buf)
+	buf = buf[:n]
+
+	return fi.IdentifyBuffer(buf), nil
+}
+
+// IdentifyBuffer identifies content from a byte buffer.
+func (fi *FileIdentifier) IdentifyBuffer(buf []byte) string {
+	return fi.matcher.Match(buf)
+}
+
+// identifyFS identifies a file by its filesystem metadata.
+func identifyFS(info os.FileInfo) string {
+	mode := info.Mode()
+	switch {
+	case mode.IsDir():
+		return "directory"
+	case mode&os.ModeSymlink != 0:
+		return "symbolic link"
+	case mode&os.ModeNamedPipe != 0:
+		return "fifo (named pipe)"
+	case mode&os.ModeSocket != 0:
+		return "socket"
+	case mode&os.ModeDevice != 0:
+		if mode&os.ModeCharDevice != 0 {
+			return "character special"
+		}
+		return "block special"
+	default:
+		return "special file"
+	}
+}
+
+// ListEntry represents a magic entry for the -l flag.
+type ListEntry struct {
+	Strength int
+	Desc     string
+	MimeType string
+	Ext      string
+}
+
+// List returns all top-level magic entries with their strengths.
+func (fi *FileIdentifier) List() []ListEntry {
+	var result []ListEntry
+	for _, g := range fi.set.Groups {
+		top := g.Entries[0]
+		if top.Type == TypeName {
+			continue
+		}
+		entry := ListEntry{
+			Strength: g.Strength,
+			Desc:     top.Desc,
+			MimeType: top.MimeType,
+			Ext:      top.Ext,
+		}
+		result = append(result, entry)
+	}
+	return result
+}
