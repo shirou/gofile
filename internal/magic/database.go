@@ -60,8 +60,8 @@ func (d *Database) GetDatabase() *MagicDatabase {
 	return d.db
 }
 
-// GetEntries returns all magic entries for a specific set
-func (d *Database) GetEntries(set int) []*MagicEntry {
+// GetEntriesForSet returns all magic entries for a specific set
+func (d *Database) GetEntriesForSet(set int) []*MagicEntry {
 	if d.db == nil || set < 0 || set >= MAGIC_SETS {
 		return nil
 	}
@@ -79,6 +79,11 @@ func (d *Database) GetAllEntries() []*MagicEntry {
 		entries = append(entries, d.db.Magic[set]...)
 	}
 	return entries
+}
+
+// GetEntries returns all magic entries (alias for GetAllEntries for compatibility)
+func (d *Database) GetEntries() []*MagicEntry {
+	return d.GetAllEntries()
 }
 
 // GetEntriesByType returns entries of a specific type
@@ -180,4 +185,14 @@ func FindMagicFile() (string, error) {
 	}
 	
 	return "", fmt.Errorf("magic file not found in any standard location")
+}
+
+// LoadDatabase loads the default magic database (convenience function)
+func LoadDatabase() (*Database, error) {
+	db := NewDatabase()
+	err := db.LoadDefault()
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
 }

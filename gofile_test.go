@@ -1,186 +1,214 @@
 package gofile
 
 import (
+	"bytes"
+	"os"
 	"strings"
 	"testing"
 )
 
-func TestNewDetector(t *testing.T) {
-	detector, err := NewDetector()
+func TestDetectFile(t *testing.T) {
+	// Create a test PNG file
+	pngData := []byte{
+		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+		0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR chunk header
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1 pixel
+		0x08, 0x02, 0x00, 0x00, 0x00, 0x37, 0x42, 0xB8, // PNG format data
+		0x89, // IHDR CRC
+	}
+
+	tmpFile, err := os.CreateTemp("", "test_*.png")
 	if err != nil {
-		t.Fatalf("Failed to create detector: %v", err)
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.Write(pngData); err != nil {
+		t.Fatalf("Failed to write test data: %v", err)
+	}
+	tmpFile.Close()
+
+	// Test DetectFile
+	result, err := DetectFile(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("DetectFile failed: %v", err)
 	}
 
-	if detector == nil {
-		t.Fatal("Detector is nil")
+	if !strings.Contains(result, "PNG") {
+		t.Errorf("Expected PNG detection, got: %s", result)
 	}
-
-	// Check that database is loaded
-	stats := detector.GetStats()
-	if stats.TotalEntries == 0 {
-		t.Error("No magic entries loaded")
-	}
-
-	t.Logf("Loaded magic database with %d entries", stats.TotalEntries)
 }
 
-func TestDetectBytes_Basic(t *testing.T) {
-	detector, err := NewDetector()
+func TestDetectFileWithOptions(t *testing.T) {
+	// Create a test PNG file
+	pngData := []byte{
+		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+		0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR chunk header
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1 pixel
+		0x08, 0x02, 0x00, 0x00, 0x00, 0x37, 0x42, 0xB8, // PNG format data
+		0x89, // IHDR CRC
+	}
+
+	tmpFile, err := os.CreateTemp("", "test_*.png")
 	if err != nil {
-		t.Fatalf("Failed to create detector: %v", err)
+		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	defer os.Remove(tmpFile.Name())
 
-	// Test with empty data
-	info, err := detector.DetectBytes([]byte{})
+	if _, err := tmpFile.Write(pngData); err != nil {
+		t.Fatalf("Failed to write test data: %v", err)
+	}
+	tmpFile.Close()
+
+	// Test with MIME option
+	opts := &Options{MIME: true}
+	result, err := DetectFileWithOptions(tmpFile.Name(), opts)
 	if err != nil {
-		t.Fatalf("Detection failed: %v", err)
+		t.Fatalf("DetectFileWithOptions failed: %v", err)
 	}
 
-	if info == nil {
-		t.Fatal("FileInfo is nil")
+	if !strings.Contains(result, "image/png") {
+		t.Errorf("Expected MIME type image/png, got: %s", result)
 	}
 
-	// Should return some basic info
-	if info.Description == "" {
-		t.Error("Description is empty")
+	// Test with Brief option
+	opts = &Options{Brief: true}
+	result, err = DetectFileWithOptions(tmpFile.Name(), opts)
+	if err != nil {
+		t.Fatalf("DetectFileWithOptions failed: %v", err)
 	}
 
-	if info.MimeType == "" {
-		t.Error("MIME type is empty")
+	// Brief mode should return shorter description
+	if len(result) > 50 {
+		t.Errorf("Expected brief description to be shorter, got: %s (length: %d)", result, len(result))
 	}
-
-	t.Logf("Empty data detected as: %s (%s)", info.Description, info.MimeType)
 }
 
-func TestDetectBytes_TextData(t *testing.T) {
-	detector, err := NewDetector()
-	if err != nil {
-		t.Fatalf("Failed to create detector: %v", err)
+func TestDetectReader(t *testing.T) {
+	// Create a test PNG data
+	pngData := []byte{
+		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+		0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR chunk header
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1 pixel
+		0x08, 0x02, 0x00, 0x00, 0x00, 0x37, 0x42, 0xB8, // PNG format data
+		0x89, // IHDR CRC
 	}
 
-	// Test with text data
-	textData := []byte("Hello, World!\nThis is a test file.\n")
-	info, err := detector.DetectBytes(textData)
+	reader := bytes.NewReader(pngData)
+
+	// Test DetectReader
+	result, err := DetectReader(reader)
 	if err != nil {
-		t.Fatalf("Detection failed: %v", err)
+		t.Fatalf("DetectReader failed: %v", err)
 	}
 
-	t.Logf("Text data detected as: %s (%s)", info.Description, info.MimeType)
+	if !strings.Contains(result, "PNG") {
+		t.Errorf("Expected PNG detection, got: %s", result)
+	}
 }
 
-func TestDetectFile_NonExistent(t *testing.T) {
-	detector, err := NewDetector()
+func TestDetectReaderWithOptions(t *testing.T) {
+	// Create a test PNG data
+	pngData := []byte{
+		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+		0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR chunk header
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1 pixel
+		0x08, 0x02, 0x00, 0x00, 0x00, 0x37, 0x42, 0xB8, // PNG format data
+		0x89, // IHDR CRC
+	}
+
+	// Test with MIME option
+	reader := bytes.NewReader(pngData)
+	opts := &Options{MIME: true}
+	result, err := DetectReaderWithOptions(reader, opts)
 	if err != nil {
-		t.Fatalf("Failed to create detector: %v", err)
+		t.Fatalf("DetectReaderWithOptions failed: %v", err)
 	}
 
-	// Test with non-existent file
-	_, err = detector.DetectFile("/non/existent/file")
-	if err == nil {
-		t.Error("Expected error for non-existent file")
+	if !strings.Contains(result, "image/png") {
+		t.Errorf("Expected MIME type image/png, got: %s", result)
+	}
+}
+
+func TestDetectBytes(t *testing.T) {
+	// Test PNG data
+	pngData := []byte{
+		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+		0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR chunk header
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1 pixel
+		0x08, 0x02, 0x00, 0x00, 0x00, 0x37, 0x42, 0xB8, // PNG format data
+		0x89, // IHDR CRC
 	}
 
-	if !strings.Contains(err.Error(), "failed to open file") {
-		t.Errorf("Unexpected error message: %v", err)
+	result, err := DetectBytes(pngData)
+	if err != nil {
+		t.Fatalf("DetectBytes failed: %v", err)
+	}
+
+	if !strings.Contains(result, "PNG") {
+		t.Errorf("Expected PNG detection, got: %s", result)
+	}
+
+	// Test empty data
+	result, err = DetectBytes([]byte{})
+	if err != nil {
+		t.Fatalf("DetectBytes failed on empty data: %v", err)
+	}
+
+	if result != "empty" {
+		t.Errorf("Expected 'empty' for empty data, got: %s", result)
+	}
+}
+
+func TestDetectBytesWithOptions(t *testing.T) {
+	// Test PNG data
+	pngData := []byte{
+		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+		0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR chunk header
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1 pixel
+		0x08, 0x02, 0x00, 0x00, 0x00, 0x37, 0x42, 0xB8, // PNG format data
+		0x89, // IHDR CRC
+	}
+
+	// Test with MIME option
+	opts := &Options{MIME: true}
+	result, err := DetectBytesWithOptions(pngData, opts)
+	if err != nil {
+		t.Fatalf("DetectBytesWithOptions failed: %v", err)
+	}
+
+	if !strings.Contains(result, "image/png") {
+		t.Errorf("Expected MIME type image/png, got: %s", result)
+	}
+
+	// Test text data detection
+	textData := []byte("Hello, World!")
+	result, err = DetectBytes(textData)
+	if err != nil {
+		t.Fatalf("DetectBytes failed on text data: %v", err)
+	}
+
+	if !strings.Contains(result, "ASCII") || !strings.Contains(result, "text") {
+		t.Errorf("Expected ASCII text detection, got: %s", result)
 	}
 }
 
 func TestDefaultOptions(t *testing.T) {
 	opts := DefaultOptions()
-	
-	if opts == nil {
-		t.Fatal("DefaultOptions returned nil")
+	if opts.MIME {
+		t.Error("Expected MIME to be false by default")
 	}
-
-	if opts.MaxBytes <= 0 {
-		t.Error("MaxBytes should be positive")
-	}
-
-	if opts.FollowLinks {
-		t.Error("FollowLinks should be false by default")
-	}
-
 	if opts.Brief {
-		t.Error("Brief should be false by default")
-	}
-
-	if opts.MimeType {
-		t.Error("MimeType should be false by default")
-	}
-
-	if opts.MimeEncoding {
-		t.Error("MimeEncoding should be false by default")
+		t.Error("Expected Brief to be false by default")
 	}
 }
 
-func TestNewDetectorWithOptions(t *testing.T) {
-	opts := &Options{
-		MaxBytes:     512,
-		FollowLinks:  true,
-		Brief:        true,
-		MimeType:     true,
-		MimeEncoding: false,
-	}
-
-	detector, err := NewDetectorWithOptions(opts)
-	if err != nil {
-		t.Fatalf("Failed to create detector with options: %v", err)
-	}
-
-	if detector == nil {
-		t.Fatal("Detector is nil")
-	}
-
-	// Verify options are stored
-	if detector.options.MaxBytes != opts.MaxBytes {
-		t.Errorf("Expected MaxBytes %d, got %d", opts.MaxBytes, detector.options.MaxBytes)
-	}
-
-	if detector.options.FollowLinks != opts.FollowLinks {
-		t.Errorf("Expected FollowLinks %v, got %v", opts.FollowLinks, detector.options.FollowLinks)
-	}
-}
-
-// Convenience function tests
-func TestConvenienceFunctions(t *testing.T) {
-	// Test DetectBytes convenience function
-	data := []byte("test data")
-	info, err := DetectBytes(data)
-	if err != nil {
-		t.Fatalf("DetectBytes failed: %v", err)
-	}
-
-	if info == nil {
-		t.Fatal("FileInfo is nil")
-	}
-
-	t.Logf("Convenience DetectBytes result: %s", info.Description)
-}
-
-// Benchmark tests
-func BenchmarkNewDetector(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		detector, err := NewDetector()
-		if err != nil {
-			b.Fatalf("Failed to create detector: %v", err)
-		}
-		_ = detector
-	}
-}
-
-func BenchmarkDetectBytes(b *testing.B) {
-	detector, err := NewDetector()
-	if err != nil {
-		b.Fatalf("Failed to create detector: %v", err)
-	}
-
-	data := []byte("Hello, World! This is test data for benchmarking.")
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := detector.DetectBytes(data)
-		if err != nil {
-			b.Fatalf("Detection failed: %v", err)
-		}
+func TestFlatDatabase(t *testing.T) {
+	db := &FlatDatabase{}
+	
+	// Test empty database
+	entries := db.GetEntries()
+	if len(entries) != 0 {
+		t.Errorf("Expected empty database, got %d entries", len(entries))
 	}
 }

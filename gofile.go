@@ -1,152 +1,198 @@
-// Package gofile provides file type detection functionality
-// compatible with the Unix file command.
+// Package gofile provides a Go implementation of the Unix file command.
+// It identifies file types by examining their content using magic number patterns.
 package gofile
 
 import (
-	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
+	"github.com/shirou/gofile/internal/detector"
 	"github.com/shirou/gofile/internal/magic"
 )
 
-// FileInfo represents information about a detected file
-type FileInfo struct {
-	Description string  // Human-readable description
-	MimeType    string  // MIME type
-	Encoding    string  // Character encoding (for text files)
-	Extensions  []string // Common file extensions
-	Confidence  float64 // Confidence level (0.0-1.0)
-}
-
-// Options configures file detection behavior
+// Options configures file detection behavior.
 type Options struct {
-	MagicFile   string // Path to custom magic file
-	MaxBytes    int    // Maximum bytes to read (0 = no limit)
-	FollowLinks bool   // Follow symbolic links
-	Brief       bool   // Return brief description only
-	MimeType    bool   // Return MIME type only
-	MimeEncoding bool  // Return MIME encoding only
+	MIME  bool // Return MIME type instead of description
+	Brief bool // Return brief description
 }
 
-// DefaultOptions returns default detection options
+// DefaultOptions returns default detection options.
 func DefaultOptions() *Options {
 	return &Options{
-		MaxBytes:    1024 * 1024, // 1MB default
-		FollowLinks: false,
-		Brief:       false,
-		MimeType:    false,
-		MimeEncoding: false,
+		MIME:  false,
+		Brief: false,
 	}
 }
 
-// Detector handles file type detection
-type Detector struct {
-	db      *magic.Database
-	options *Options
+// DetectFile detects the file type of the given file path using default options.
+func DetectFile(path string) (string, error) {
+	return DetectFileWithOptions(path, DefaultOptions())
 }
 
-// NewDetector creates a new file detector with default options
-func NewDetector() (*Detector, error) {
-	return NewDetectorWithOptions(DefaultOptions())
-}
-
-// NewDetectorWithOptions creates a new file detector with custom options
-func NewDetectorWithOptions(opts *Options) (*Detector, error) {
-	detector := &Detector{
-		db:      magic.NewDatabase(),
-		options: opts,
-	}
-
+// DetectFileWithOptions detects the file type of the given file path with custom options.
+func DetectFileWithOptions(path string, opts *Options) (string, error) {
 	// Load magic database
-	var err error
-	if opts.MagicFile != "" {
-		err = detector.db.Load(opts.MagicFile)
-	} else {
-		err = detector.db.LoadDefault()
-	}
-
+	parser := magic.NewParser()
+	magicFile := findMagicFile()
+	db, err := parser.ParseFile(magicFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load magic database: %w", err)
+		return "", err
 	}
 
-	return detector, nil
+	// Create flat database for detector
+	flatDB := &FlatDatabase{}
+	for set := 0; set < 2; set++ {
+		for _, entry := range db.Magic[set] {
+			if entry.Type != 0 {
+				flatDB.entries = append(flatDB.entries, entry)
+			}
+		}
+	}
+
+	// Configure detector options
+	detectorOpts := detector.DefaultOptions()
+	detectorOpts.MIME = opts.MIME
+	detectorOpts.Brief = opts.Brief
+
+	// Create detector and perform detection
+	det := detector.New(flatDB, detectorOpts)
+	return det.DetectFile(path)
 }
 
-// DetectFile detects the type of a file by path
-func (d *Detector) DetectFile(filename string) (*FileInfo, error) {
-	file, err := os.Open(filename)
+// DetectReader detects the file type from an io.Reader using default options.
+func DetectReader(reader io.Reader) (string, error) {
+	return DetectReaderWithOptions(reader, DefaultOptions())
+}
+
+// DetectReaderWithOptions detects the file type from an io.Reader with custom options.
+func DetectReaderWithOptions(reader io.Reader, opts *Options) (string, error) {
+	// Load magic database
+	parser := magic.NewParser()
+	magicFile := findMagicFile()
+	db, err := parser.ParseFile(magicFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file %s: %w", filename, err)
+		return "", err
 	}
-	defer file.Close()
 
-	return d.DetectReader(file)
+	// Create flat database for detector
+	flatDB := &FlatDatabase{}
+	for set := 0; set < 2; set++ {
+		for _, entry := range db.Magic[set] {
+			if entry.Type != 0 {
+				flatDB.entries = append(flatDB.entries, entry)
+			}
+		}
+	}
+
+	// Configure detector options
+	detectorOpts := detector.DefaultOptions()
+	detectorOpts.MIME = opts.MIME
+	detectorOpts.Brief = opts.Brief
+
+	// Create detector and perform detection
+	det := detector.New(flatDB, detectorOpts)
+	return det.DetectReader(reader)
 }
 
-// DetectReader detects the type of data from a reader
-func (d *Detector) DetectReader(r io.Reader) (*FileInfo, error) {
-	// Read initial bytes for detection
-	maxBytes := d.options.MaxBytes
-	if maxBytes <= 0 {
-		maxBytes = 1024 * 1024 // Default 1MB
-	}
-
-	data := make([]byte, maxBytes)
-	n, err := r.Read(data)
-	if err != nil && err != io.EOF {
-		return nil, fmt.Errorf("failed to read data: %w", err)
-	}
-
-	return d.DetectBytes(data[:n])
+// DetectBytes detects the file type from a byte slice using default options.
+func DetectBytes(data []byte) (string, error) {
+	return DetectBytesWithOptions(data, DefaultOptions())
 }
 
-// DetectBytes detects the type of data from a byte slice
-func (d *Detector) DetectBytes(data []byte) (*FileInfo, error) {
-	// TODO: Implement actual detection logic
-	// For now, return a placeholder result
+// DetectBytesWithOptions detects the file type from a byte slice with custom options.
+func DetectBytesWithOptions(data []byte, opts *Options) (string, error) {
+	// Load magic database
+	parser := magic.NewParser()
+	magicFile := findMagicFile()
+	db, err := parser.ParseFile(magicFile)
+	if err != nil {
+		return "", err
+	}
+
+	// Create flat database for detector
+	flatDB := &FlatDatabase{}
+	for set := 0; set < 2; set++ {
+		for _, entry := range db.Magic[set] {
+			if entry.Type != 0 {
+				flatDB.entries = append(flatDB.entries, entry)
+			}
+		}
+	}
+
+	// Configure detector options
+	detectorOpts := detector.DefaultOptions()
+	detectorOpts.MIME = opts.MIME
+	detectorOpts.Brief = opts.Brief
+
+	// Create detector and perform detection
+	det := detector.New(flatDB, detectorOpts)
+	return det.DetectBytes(data)
+}
+
+// FlatDatabase implements DatabaseInterface for the detector
+type FlatDatabase struct {
+	entries []*magic.MagicEntry
+}
+
+// GetEntries returns all magic entries in the database
+func (db *FlatDatabase) GetEntries() []*magic.MagicEntry {
+	return db.entries
+}
+
+// findMagicFile locates the magic.mgc file in various standard locations
+func findMagicFile() string {
+	// Try different possible locations for magic.mgc
+	locations := []string{
+		// Relative paths (for testing)
+		"test/testdata/magic/magic.mgc",
+		"testdata/magic/magic.mgc",
+		"../test/testdata/magic/magic.mgc",
+		"../../test/testdata/magic/magic.mgc",
+		// System locations
+		"/usr/lib/file/magic.mgc",
+		"/usr/share/misc/magic.mgc", 
+		"/usr/share/file/magic.mgc",
+		"/etc/magic.mgc",
+		"./magic.mgc",
+	}
 	
-	info := &FileInfo{
-		Description: "data", // Placeholder
-		MimeType:    "application/octet-stream",
-		Encoding:    "",
-		Extensions:  []string{},
-		Confidence:  0.5,
+	for _, location := range locations {
+		if _, err := os.Stat(location); err == nil {
+			return location
+		}
 	}
-
-	return info, nil
+	
+	// If not found, try to find project root and construct path
+	if projectRoot := findProjectRoot(); projectRoot != "" {
+		magicFile := filepath.Join(projectRoot, "test", "testdata", "magic", "magic.mgc")
+		if _, err := os.Stat(magicFile); err == nil {
+			return magicFile
+		}
+	}
+	
+	// Fallback to first location (will cause error later if not found)
+	return locations[0]
 }
 
-// GetStats returns statistics about the loaded magic database
-func (d *Detector) GetStats() *magic.DatabaseStats {
-	return d.db.Stats()
-}
-
-// Convenience functions for simple use cases
-
-// DetectFile detects the type of a file using default options
-func DetectFile(filename string) (*FileInfo, error) {
-	detector, err := NewDetector()
+// findProjectRoot attempts to find the project root directory
+func findProjectRoot() string {
+	dir, err := os.Getwd()
 	if err != nil {
-		return nil, err
+		return ""
 	}
-	return detector.DetectFile(filename)
-}
-
-// DetectReader detects the type of data from a reader using default options
-func DetectReader(r io.Reader) (*FileInfo, error) {
-	detector, err := NewDetector()
-	if err != nil {
-		return nil, err
+	
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
 	}
-	return detector.DetectReader(r)
-}
-
-// DetectBytes detects the type of data from a byte slice using default options
-func DetectBytes(data []byte) (*FileInfo, error) {
-	detector, err := NewDetector()
-	if err != nil {
-		return nil, err
-	}
-	return detector.DetectBytes(data)
+	
+	return ""
 }

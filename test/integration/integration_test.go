@@ -4,8 +4,13 @@ package integration
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/shirou/gofile"
+	"github.com/shirou/gofile/internal/magic"
 )
 
 // TestMagicFileLoading tests loading of magic.mgc file
@@ -17,9 +22,28 @@ func TestMagicFileLoading(t *testing.T) {
 		t.Fatalf("Magic file not found. Run 'make setup-test' first.")
 	}
 	
-	// TODO: Test magic file loading
-	// This will be implemented once the magic parser is ready
-	t.Log("Magic file found:", magicFile)
+	// Test magic file loading
+	parser := magic.NewParser()
+	db, err := parser.ParseFile(magicFile)
+	if err != nil {
+		t.Fatalf("Failed to parse magic file: %v", err)
+	}
+	
+	if db == nil {
+		t.Fatal("Magic database is nil")
+	}
+	
+	// Verify we loaded some entries
+	totalEntries := 0
+	for i := 0; i < 2; i++ {
+		totalEntries += int(db.NMagic[i])
+	}
+	
+	if totalEntries == 0 {
+		t.Fatal("No magic entries loaded")
+	}
+	
+	t.Logf("Successfully loaded magic database with %d entries", totalEntries)
 }
 
 // TestFileDetection tests basic file detection functionality
@@ -28,7 +52,7 @@ func TestFileDetection(t *testing.T) {
 	testDataDir := filepath.Join(projectRoot, "test", "testdata", "file-tests", "db")
 	
 	if _, err := os.Stat(testDataDir); os.IsNotExist(err) {
-		t.Fail("Test data not found. Run 'make setup-test' first.")
+		t.Fatalf("Test data not found. Run 'make setup-test' first.")
 	}
 	
 	// Test basic file types
@@ -58,7 +82,7 @@ func TestFileDetection(t *testing.T) {
 			// Filter out .source.txt files
 			var testFile string
 			for _, file := range files {
-				if !filepath.Ext(file) == ".txt" || !contains(file, ".source.") {
+				if filepath.Ext(file) != ".txt" && !contains(file, ".source.") {
 					testFile = file
 					break
 				}
@@ -68,18 +92,18 @@ func TestFileDetection(t *testing.T) {
 				t.Skipf("No suitable test file found in category %s", tc.category)
 			}
 			
-			// TODO: Test file detection
-			// result, err := gofile.DetectFile(testFile)
-			// if err != nil {
-			//     t.Fatalf("Detection failed: %v", err)
-			// }
-			// 
-			// if !strings.Contains(result.Description, tc.expected) {
-			//     t.Errorf("Expected description to contain '%s', got '%s'", 
-			//         tc.expected, result.Description)
-			// }
+			// Test file detection
+			result, err := gofile.DetectFile(testFile)
+			if err != nil {
+				t.Fatalf("Detection failed: %v", err)
+			}
 			
-			t.Logf("Would test file: %s (expecting: %s)", testFile, tc.expected)
+			if !strings.Contains(result, tc.expected) {
+				t.Errorf("Expected description to contain '%s', got '%s'", 
+					tc.expected, result)
+			}
+			
+			t.Logf("Successfully detected file: %s -> %s", testFile, result)
 		})
 	}
 }
@@ -93,9 +117,38 @@ func TestCLIInterface(t *testing.T) {
 		t.Skip("Binary not found. Run 'make build' first.")
 	}
 	
-	// TODO: Test CLI interface
-	// This will test the command-line interface once it's implemented
-	t.Log("Binary found:", binaryPath)
+	// Test CLI interface with a simple PNG file
+	testPNG := filepath.Join(projectRoot, "test_minimal.png")
+	if _, err := os.Stat(testPNG); os.IsNotExist(err) {
+		t.Skip("Test PNG file not found")
+	}
+	
+	// Test basic detection
+	cmd := exec.Command(binaryPath, testPNG)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("CLI command failed: %v, output: %s", err, string(output))
+	}
+	
+	result := string(output)
+	if !strings.Contains(result, "PNG") {
+		t.Errorf("Expected PNG detection, got: %s", result)
+	}
+	
+	// Test MIME mode
+	cmd = exec.Command(binaryPath, "-i", testPNG)
+	output, err = cmd.Output()
+	if err != nil {
+		t.Fatalf("CLI MIME command failed: %v", err)
+	}
+	
+	mimeResult := string(output)
+	if !strings.Contains(mimeResult, "image/png") {
+		t.Errorf("Expected MIME type image/png, got: %s", mimeResult)
+	}
+	
+	t.Logf("CLI test successful - Basic: %s, MIME: %s", 
+		strings.TrimSpace(result), strings.TrimSpace(mimeResult))
 }
 
 // contains checks if a string contains a substring

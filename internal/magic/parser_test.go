@@ -165,7 +165,7 @@ func TestDatabase_GetEntries(t *testing.T) {
 	
 	// Test getting entries by set
 	for set := 0; set < MAGIC_SETS; set++ {
-		entries := db.GetEntries(set)
+		entries := db.GetEntriesForSet(set)
 		if len(entries) != int(db.GetDatabase().NMagic[set]) {
 			t.Errorf("Set %d: expected %d entries, got %d", 
 				set, db.GetDatabase().NMagic[set], len(entries))
@@ -173,7 +173,7 @@ func TestDatabase_GetEntries(t *testing.T) {
 	}
 	
 	// Test getting all entries
-	allEntries := db.GetAllEntries()
+	allEntries := db.GetEntries()
 	expectedTotal := uint32(0)
 	for i := 0; i < MAGIC_SETS; i++ {
 		expectedTotal += db.GetDatabase().NMagic[i]

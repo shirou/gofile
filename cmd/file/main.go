@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/shirou/gofile"
+	"github.com/shirou/gofile/internal/detector"
+	"github.com/shirou/gofile/internal/magic"
 )
 
 var (
 	brief        = flag.Bool("b", false, "Brief mode - don't prepend filenames to output lines")
 	mimeType     = flag.Bool("i", false, "Output MIME type strings")
-	mimeEncoding = flag.Bool("mime-encoding", false, "Output MIME encoding")
 	magicFile    = flag.String("m", "", "Use specified magic file")
 	version      = flag.Bool("version", false, "Show version information")
 	help         = flag.Bool("h", false, "Show help")
@@ -42,25 +42,37 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create detector with options
-	opts := gofile.DefaultOptions()
-	opts.Brief = *brief
-	opts.MimeType = *mimeType
-	opts.MimeEncoding = *mimeEncoding
-	if *magicFile != "" {
-		opts.MagicFile = *magicFile
-	}
-
-	detector, err := gofile.NewDetectorWithOptions(opts)
+	// Load magic database
+	parser := magic.NewParser()
+	db, err := parser.ParseFile("test/testdata/magic/magic.mgc")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s: %v\n", programName, err)
+		fmt.Fprintf(os.Stderr, "Error loading magic database: %v\n", err)
 		os.Exit(1)
 	}
+
+	// Create flat database for detector
+	flatDB := &FlatDatabase{}
+	for set := 0; set < 2; set++ {
+		for _, entry := range db.Magic[set] {
+			if entry.Type != 0 {
+				flatDB.entries = append(flatDB.entries, entry)
+			}
+		}
+	}
+
+	// Configure detector options
+	opts := detector.DefaultOptions()
+	opts.MIME = *mimeType
+	opts.Brief = *brief
+	opts.Debug = false // Disable debug mode for normal usage
+
+	// Create detector
+	det := detector.New(flatDB, opts)
 
 	// Process each file
 	exitCode := 0
 	for _, filename := range args {
-		if err := processFile(detector, filename); err != nil {
+		if err := processFile(filename, det); err != nil {
 			fmt.Fprintf(os.Stderr, "%s: %s: %v\n", programName, filename, err)
 			exitCode = 1
 		}
@@ -69,52 +81,30 @@ func main() {
 	os.Exit(exitCode)
 }
 
-func processFile(detector *gofile.Detector, filename string) error {
+type FlatDatabase struct {
+	entries []*magic.MagicEntry
+}
+
+func (db *FlatDatabase) GetEntries() []*magic.MagicEntry {
+	return db.entries
+}
+
+func processFile(filename string, det *detector.Detector) error {
 	// Check if file exists
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		return fmt.Errorf("cannot stat (%s)", err)
 	}
 
 	// Detect file type
-	info, err := detector.DetectFile(filename)
+	result, err := det.DetectFile(filename)
 	if err != nil {
 		return err
 	}
 
-	// Format output
-	output := formatOutput(filename, info)
-	fmt.Println(output)
+	// Output result
+	fmt.Printf("%s: %s\n", filename, result)
 
 	return nil
-}
-
-func formatOutput(filename string, info *gofile.FileInfo) string {
-	var result string
-
-	if *brief {
-		// Brief mode - no filename prefix
-		result = getOutputContent(info)
-	} else {
-		// Normal mode - include filename
-		result = fmt.Sprintf("%s: %s", filename, getOutputContent(info))
-	}
-
-	return result
-}
-
-func getOutputContent(info *gofile.FileInfo) string {
-	if *mimeType {
-		return info.MimeType
-	}
-	
-	if *mimeEncoding {
-		if info.Encoding != "" {
-			return info.Encoding
-		}
-		return "binary"
-	}
-
-	return info.Description
 }
 
 func showHelp() {
@@ -124,7 +114,6 @@ func showHelp() {
 	fmt.Println("Options:")
 	fmt.Println("  -b                    Brief mode - don't prepend filenames")
 	fmt.Println("  -i                    Output MIME type strings")
-	fmt.Println("  --mime-encoding       Output MIME encoding")
 	fmt.Println("  -m FILE               Use specified magic file")
 	fmt.Println("  --version             Show version information")
 	fmt.Println("  -h                    Show this help")
@@ -135,12 +124,4 @@ func showHelp() {
 func showVersion() {
 	fmt.Printf("%s %s\n", programName, programVersion)
 	fmt.Println("Go implementation of the file command")
-	fmt.Println()
-	
-	// Show magic database stats if available
-	if detector, err := gofile.NewDetector(); err == nil {
-		stats := detector.GetStats()
-		fmt.Printf("Magic database: %d entries, version %d\n", 
-			stats.TotalEntries, stats.Version)
-	}
 }

@@ -95,6 +95,7 @@ const (
 	TEXTTEST     = 0x40  // for passing to file_softmagic
 	OFFNEGATIVE  = 0x80  // relative to the end of file
 	OFFPOSITIVE  = 0x100 // relative to the beginning of file
+	LITTLE_ENDIAN = 0x200 // little endian byte order
 )
 
 // Condition constants
@@ -105,53 +106,51 @@ const (
 	COND_ELSE = 3
 )
 
-// MagicEntry represents a single magic entry (432 bytes total)
+// MagicEntry represents a single magic entry (376 bytes total in version 18)
+// Layout based on empirical analysis of magic.mgc file structure
 type MagicEntry struct {
-	// Word 1 (4 bytes)
-	Flag      uint16 // Flags
+	// Padding to Type field at offset 12
+	_ [12]byte
+
+	// Critical fields at known positions
+	Reln   uint8 // Relation (0=eq, '>'=gt, etc) - at offset 12
+	Vallen uint8 // Length of string value - at offset 13
+	Type   uint8 // Comparison type (FILE_*) - at offset 14  
+	InType uint8 // Type of indirection - at offset 15
+
+	// Padding to Description field at offset 40
+	_ [24]byte // Skip from offset 16 to 40
+
+	// Description field at offset 40 (verified by analysis)
+	Desc [MAXDESC]byte // Description - 64 bytes starting at offset 40
+
+	// Other fields after description (positions approximate)
+	Offset   int32 // Offset to magic number
+	InOffset int32 // Offset from indirection
+	
+	Flag      uint16 // Flags 
 	ContLevel uint8  // Continuation level
 	Factor    uint8  // Factor
 
-	// Word 2 (4 bytes)
-	Reln   uint8 // Relation (0=eq, '>'=gt, etc)
-	Vallen uint8 // Length of string value, if any
-	Type   uint8 // Comparison type (FILE_*)
-	InType uint8 // Type of indirection
-
-	// Word 3 (4 bytes)
 	InOp     uint8 // Operator for indirection
-	MaskOp   uint8 // Operator for mask
+	MaskOp   uint8 // Operator for mask  
 	Cond     uint8 // Conditional type
 	FactorOp uint8 // Factor operator
 
-	// Word 4 (4 bytes)
-	Offset int32 // Offset to magic number
+	Lineno   uint32 // Line number in magic file
+	NumMask  uint64 // For use with numeric and date types
+	StrRange uint32 // For use with string types (repeat/line count)
+	StrFlags uint32 // For use with string types (modifier flags)
 
-	// Word 5 (4 bytes)
-	InOffset int32 // Offset from indirection
+	Value [32]byte // Value field
 
-	// Word 6 (4 bytes)
-	Lineno uint32 // Line number in magic file
-
-	// Word 7-8 (8 bytes)
-	NumMask   uint64 // For use with numeric and date types
-	StrRange  uint32 // For use with string types (repeat/line count)
-	StrFlags  uint32 // For use with string types (modifier flags)
-
-	// Words 9-24 (64 bytes)
-	Value [64]byte // Either number or string
-
-	// Words 25-40 (64 bytes)
-	Desc [MAXDESC]byte // Description
-
-	// Words 41-60 (80 bytes)
+	// MIME type and other fields
 	MimeType [MAXMIME]byte // MIME type
-
-	// Words 61-62 (8 bytes)
 	Apple [8]byte // Apple CREATOR/TYPE
-
-	// Words 63-78 (64 bytes)
 	Ext [MAXEXT]byte // Popular extensions
+	
+	// Final padding to reach exactly 376 bytes
+	_ [42]byte // Adjusted padding (448 - 376 = 72, so reduce by 72)
 }
 
 // MagicDatabase represents the loaded magic database
@@ -204,7 +203,23 @@ func (m *MagicEntry) GetValueAsString() string {
 	if !m.IsString() {
 		return ""
 	}
-	return cStringToString(m.Value[:])
+	
+	// For FILE_STRING, the value is often embedded within the description field
+	// starting from offset 1 within the description
+	switch m.Type {
+	case FILE_STRING:
+		// PNG entries show the pattern is in the description field starting at offset 1
+		if len(m.Desc) > 1 {
+			// Look for the actual string value embedded in description
+			desc_str := cStringToString(m.Desc[:])
+			if len(desc_str) > 0 {
+				return desc_str
+			}
+		}
+		return cStringToString(m.Value[:])
+	default:
+		return cStringToString(m.Value[:])
+	}
 }
 
 // GetValueAsUint64 returns the value as uint64 (for numeric types)

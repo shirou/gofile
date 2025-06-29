@@ -55,11 +55,13 @@ func (p *Parser) Parse(r io.Reader) (*MagicDatabase, error) {
 		totalEntries += header.NMagic[i]
 	}
 
-	expectedSize := totalEntries * uint32(unsafe.Sizeof(MagicEntry{}))
-	// Note: Some magic files may have different sizes due to padding or version differences
-	// For now, we'll be more lenient with size checking
-	if uint32(len(data)) < expectedSize {
-		return nil, fmt.Errorf("file too small: expected at least %d, got %d", expectedSize, len(data))
+	// Calculate minimum expected size based on data in file
+	// Magic files can have different struct sizes depending on version
+	// Use a more conservative estimate - each entry needs at least 320 bytes
+	minExpectedSize := totalEntries * 320
+	
+	if uint32(len(data)) < minExpectedSize {
+		return nil, fmt.Errorf("file too small: expected at least %d, got %d", minExpectedSize, len(data))
 	}
 
 	// Parse magic entries
@@ -68,12 +70,35 @@ func (p *Parser) Parse(r io.Reader) (*MagicDatabase, error) {
 		NMagic:  header.NMagic,
 	}
 
-	offset := uint32(unsafe.Sizeof(MagicEntry{})) // Skip header entry
+	// Calculate actual entry size from file
+	headerSize := uint32(unsafe.Sizeof(MagicHeader{}))
+	
+	// Find first non-zero entry to skip padding
+	actualDataStart := headerSize
+	for actualDataStart < uint32(len(data))-16 {
+		// Check if we have non-zero data in next 16 bytes
+		hasData := false
+		for i := actualDataStart; i < actualDataStart+16 && i < uint32(len(data)); i++ {
+			if data[i] != 0 {
+				hasData = true
+				break
+			}
+		}
+		if hasData {
+			break
+		}
+		actualDataStart += 16
+	}
+	
+	dataSize := uint32(len(data)) - actualDataStart
+	actualEntrySize := dataSize / totalEntries
+	
+	offset := actualDataStart
 	for set := 0; set < MAGIC_SETS; set++ {
 		db.Magic[set] = make([]*MagicEntry, header.NMagic[set])
 		
 		for i := uint32(0); i < header.NMagic[set]; i++ {
-			if offset+uint32(unsafe.Sizeof(MagicEntry{})) > uint32(len(data)) {
+			if offset+actualEntrySize > uint32(len(data)) {
 				return nil, fmt.Errorf("unexpected end of file while parsing entries")
 			}
 
@@ -83,7 +108,7 @@ func (p *Parser) Parse(r io.Reader) (*MagicDatabase, error) {
 			}
 
 			db.Magic[set][i] = entry
-			offset += uint32(unsafe.Sizeof(MagicEntry{}))
+			offset += actualEntrySize
 		}
 	}
 
