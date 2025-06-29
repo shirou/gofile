@@ -3,6 +3,7 @@ package detector
 import (
 	"fmt"
 	"strings"
+	"unsafe"
 
 	"github.com/shirou/gofile/internal/magic"
 )
@@ -31,6 +32,29 @@ func (d *Detector) readInt32(data []byte, littleEndian bool) int32 {
 	return int32(d.readUint32(data, littleEndian))
 }
 
+func (d *Detector) readUint64(data []byte, littleEndian bool) uint64 {
+	if littleEndian {
+		return uint64(data[0]) | uint64(data[1])<<8 | uint64(data[2])<<16 | uint64(data[3])<<24 |
+			uint64(data[4])<<32 | uint64(data[5])<<40 | uint64(data[6])<<48 | uint64(data[7])<<56
+	}
+	return uint64(data[7]) | uint64(data[6])<<8 | uint64(data[5])<<16 | uint64(data[4])<<24 |
+		uint64(data[3])<<32 | uint64(data[2])<<40 | uint64(data[1])<<48 | uint64(data[0])<<56
+}
+
+func (d *Detector) readInt64(data []byte, littleEndian bool) int64 {
+	return int64(d.readUint64(data, littleEndian))
+}
+
+func (d *Detector) readFloat32(data []byte, littleEndian bool) float32 {
+	bits := d.readUint32(data, littleEndian)
+	return *(*float32)(unsafe.Pointer(&bits))
+}
+
+func (d *Detector) readFloat64(data []byte, littleEndian bool) float64 {
+	bits := d.readUint64(data, littleEndian)
+	return *(*float64)(unsafe.Pointer(&bits))
+}
+
 // compareValues compares two values based on the relation operator
 func (d *Detector) compareValues(actual, expected uint64, relation byte) bool {
 	switch relation {
@@ -49,6 +73,32 @@ func (d *Detector) compareValues(actual, expected uint64, relation byte) bool {
 	default:
 		// Default to equality for unknown relations
 		return actual == expected
+	}
+}
+
+// compareFloats compares two float64 values based on the relation operator
+func (d *Detector) compareFloats(actual, expected float64, relation byte) bool {
+	const epsilon = 1e-9 // Small tolerance for floating-point comparison
+	
+	switch relation {
+	case '=', 0: // Equal (default)
+		diff := actual - expected
+		return diff > -epsilon && diff < epsilon
+	case '!': // Not equal
+		diff := actual - expected
+		return diff <= -epsilon || diff >= epsilon
+	case '<': // Less than
+		return actual < expected
+	case '>': // Greater than
+		return actual > expected
+	case '&': // Bitwise AND (treat as integer comparison)
+		return (uint64(actual) & uint64(expected)) == uint64(expected)
+	case '^': // Bitwise XOR (treat as integer comparison)
+		return (uint64(actual) ^ uint64(expected)) != 0
+	default:
+		// Default to equality for unknown relations
+		diff := actual - expected
+		return diff > -epsilon && diff < epsilon
 	}
 }
 
@@ -450,6 +500,70 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// isValidDescription checks if a description contains only printable characters
+// and is suitable for use as a file type description
+func (d *Detector) isValidDescription(desc string) bool {
+	if len(desc) == 0 {
+		return false
+	}
+	
+	// Reject single-character descriptions with control characters or punctuation only
+	if len(desc) == 1 {
+		char := desc[0]
+		// Reject any control characters (0-31) and DEL (127)
+		if char < 32 || char == 127 {
+			return false
+		}
+		// Only allow alphanumeric characters for single-char descriptions
+		if !((char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9')) {
+			return false
+		}
+	}
+	
+	// For multi-character descriptions, be more lenient but still filter control chars
+	printableCount := 0
+	totalCount := len(desc)
+	
+	for _, r := range desc {
+		// Allow printable ASCII, tabs, and newlines
+		if (r >= 32 && r <= 126) || r == '\t' || r == '\n' || r == '\r' {
+			printableCount++
+		} else if r >= 128 && r <= 255 {
+			// Allow extended ASCII (Latin-1)
+			printableCount++
+		}
+		// Control characters and null bytes are not allowed
+	}
+	
+	// Require at least 80% printable characters
+	ratio := float64(printableCount) / float64(totalCount)
+	if ratio < 0.8 {
+		return false
+	}
+	
+	// Additional check: descriptions should look meaningful
+	// Reject if it's all punctuation or seems like binary data
+	if len(desc) <= 3 {
+		// Short descriptions should have at least one letter or be a known good pattern
+		hasLetter := false
+		for _, r := range desc {
+			if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') {
+				hasLetter = true
+				break
+			}
+		}
+		if !hasLetter {
+			// Check for known good short patterns
+			goodShort := desc == "data" || desc == "text" || desc == "PDF" || desc == "PNG" || desc == "GIF" || desc == "ZIP"
+			if !goodShort {
+				return false
+			}
+		}
+	}
+	
+	return true
 }
 
 // parsePNGDetails extracts detailed information from PNG file headers

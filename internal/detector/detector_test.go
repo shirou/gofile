@@ -16,7 +16,7 @@ func TestDetector_DetectBytes(t *testing.T) {
 		{
 			Offset: 0,
 			Type:   magic.FILE_LONG,
-			Value:  [32]byte{0x47, 0x4E, 0x50, 0x89}, // PNG signature first 4 bytes (little endian)
+			Value:  [64]byte{0x47, 0x4E, 0x50, 0x89}, // PNG signature first 4 bytes (little endian)
 			Vallen: 4,
 			Desc:   [64]byte{'P', 'N', 'G', ' ', 'i', 'm', 'a', 'g', 'e', ' ', 'd', 'a', 't', 'a'},
 			Reln:   '=',
@@ -25,7 +25,7 @@ func TestDetector_DetectBytes(t *testing.T) {
 		{
 			Offset: 0,
 			Type:   magic.FILE_SHORT,
-			Value:  [32]byte{0xD8, 0xFF}, // JPEG signature (little endian)
+			Value:  [64]byte{0xD8, 0xFF}, // JPEG signature (little endian)
 			Vallen: 2,
 			Desc:   [64]byte{'J', 'P', 'E', 'G', ' ', 'i', 'm', 'a', 'g', 'e', ' ', 'd', 'a', 't', 'a'},
 			Reln:   '=',
@@ -34,7 +34,7 @@ func TestDetector_DetectBytes(t *testing.T) {
 		{
 			Offset: 0,
 			Type:   magic.FILE_STRING,
-			Value:  [32]byte{'%', 'P', 'D', 'F'}, // PDF signature
+			Value:  [64]byte{'%', 'P', 'D', 'F'}, // PDF signature
 			Vallen: 4,
 			Desc:   [64]byte{'P', 'D', 'F', ' ', 'd', 'o', 'c', 'u', 'm', 'e', 'n', 't'},
 			Reln:   '=',
@@ -98,7 +98,7 @@ func TestDetector_DetectBytes_MIME(t *testing.T) {
 		{
 			Offset: 0,
 			Type:   magic.FILE_LONG,
-			Value:  [32]byte{0x47, 0x4E, 0x50, 0x89}, // PNG signature (little endian)
+			Value:  [64]byte{0x47, 0x4E, 0x50, 0x89}, // PNG signature (little endian)
 			Vallen: 4,
 			Desc:   [64]byte{'P', 'N', 'G', ' ', 'i', 'm', 'a', 'g', 'e', ' ', 'd', 'a', 't', 'a'},
 			Reln:   '=',

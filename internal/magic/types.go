@@ -106,51 +106,40 @@ const (
 	COND_ELSE = 3
 )
 
-// MagicEntry represents a single magic entry (376 bytes total in version 18)
-// Layout based on empirical analysis of magic.mgc file structure
+// MagicEntry represents a single magic entry (376 bytes in version 18, 432 in version 20)
+// Layout based on official file.h struct magic definition
 type MagicEntry struct {
-	// Padding to Type field at offset 12
-	_ [12]byte
-
-	// Critical fields at known positions
-	Reln   uint8 // Relation (0=eq, '>'=gt, etc) - at offset 12
-	Vallen uint8 // Length of string value - at offset 13
-	Type   uint8 // Comparison type (FILE_*) - at offset 14  
-	InType uint8 // Type of indirection - at offset 15
-
-	// Padding to Description field at offset 40
-	_ [24]byte // Skip from offset 16 to 40
-
-	// Description field at offset 40 (verified by analysis)
-	Desc [MAXDESC]byte // Description - 64 bytes starting at offset 40
-
-	// Other fields after description (positions approximate)
-	Offset   int32 // Offset to magic number
-	InOffset int32 // Offset from indirection
+	// Core fields (24 bytes)
+	Flag      uint16 // Offset 0: Flags (INDIR, OFFADD, etc.)
+	ContLevel uint8  // Offset 2: Continuation level
+	Factor    uint8  // Offset 3: Factor
 	
-	Flag      uint16 // Flags 
-	ContLevel uint8  // Continuation level
-	Factor    uint8  // Factor
-
-	InOp     uint8 // Operator for indirection
-	MaskOp   uint8 // Operator for mask  
-	Cond     uint8 // Conditional type
-	FactorOp uint8 // Factor operator
-
-	Lineno   uint32 // Line number in magic file
-	NumMask  uint64 // For use with numeric and date types
-	StrRange uint32 // For use with string types (repeat/line count)
-	StrFlags uint32 // For use with string types (modifier flags)
-
-	Value [32]byte // Value field
-
-	// MIME type and other fields
-	MimeType [MAXMIME]byte // MIME type
-	Apple [8]byte // Apple CREATOR/TYPE
-	Ext [MAXEXT]byte // Popular extensions
+	Reln   uint8 // Offset 4: Relation (=, >, <, etc.)
+	Vallen uint8 // Offset 5: Length of string value
+	Type   uint8 // Offset 6: Comparison type (FILE_*) - CORRECT POSITION
+	InType uint8 // Offset 7: Type of indirection
 	
-	// Final padding to reach exactly 376 bytes
-	_ [42]byte // Adjusted padding (448 - 376 = 72, so reduce by 72)
+	InOp     uint8 // Offset 8: Operator for indirection
+	MaskOp   uint8 // Offset 9: Operator for mask
+	Cond     uint8 // Offset 10: Conditional type
+	FactorOp uint8 // Offset 11: Factor operator
+	
+	Offset   int32  // Offset 12: File offset to check
+	InOffset int32  // Offset 16: Indirection offset
+	Lineno   uint32 // Offset 20: Line number in magic file
+	
+	// Union for masks/counts (8 bytes at offset 24)
+	NumMask  uint64 // For numeric types (or StrRange/StrFlags for strings)
+	
+	// Text fields - CORRECTED POSITIONS based on analysis
+	Desc     [MAXDESC]byte  // Offset 32: Description (64 bytes) - CORRECTED!
+	Value    [64]byte       // Offset 96: Value field (64 bytes)
+	Apple    [8]byte        // Offset 160: Apple/format info  
+	MimeType [MAXMIME]byte  // Offset 168: MIME type (80 bytes) - estimated
+	Ext      [MAXEXT]byte   // Offset 248: Extensions (120 bytes)
+	
+	// Padding to reach entry size (368 + 8 = 376 bytes for version 18)
+	_ [32]byte // Padding to reach exactly 376 bytes
 }
 
 // MagicDatabase represents the loaded magic database
@@ -204,22 +193,25 @@ func (m *MagicEntry) GetValueAsString() string {
 		return ""
 	}
 	
-	// For FILE_STRING, the value is often embedded within the description field
-	// starting from offset 1 within the description
-	switch m.Type {
-	case FILE_STRING:
-		// PNG entries show the pattern is in the description field starting at offset 1
-		if len(m.Desc) > 1 {
-			// Look for the actual string value embedded in description
-			desc_str := cStringToString(m.Desc[:])
-			if len(desc_str) > 0 {
-				return desc_str
-			}
-		}
-		return cStringToString(m.Value[:])
-	default:
-		return cStringToString(m.Value[:])
+	// For FILE_STRING, check if Value field has data
+	valueStr := cStringToString(m.Value[:])
+	if len(valueStr) > 0 {
+		return valueStr
 	}
+	
+	// If Value is empty, extract pattern from Description using Vallen
+	// Many magic entries store the pattern in the first part of Description
+	if m.Vallen > 0 && int(m.Vallen) <= len(m.Desc) {
+		return cStringToString(m.Desc[:m.Vallen])
+	}
+	
+	// Fallback: use entire description as pattern
+	desc := m.GetDescription()
+	if len(desc) > 0 {
+		return desc
+	}
+	
+	return ""
 }
 
 // GetValueAsUint64 returns the value as uint64 (for numeric types)

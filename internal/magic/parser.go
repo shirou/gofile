@@ -70,28 +70,11 @@ func (p *Parser) Parse(r io.Reader) (*MagicDatabase, error) {
 		NMagic:  header.NMagic,
 	}
 
-	// Calculate actual entry size from file
-	headerSize := uint32(unsafe.Sizeof(MagicHeader{}))
+	// Magic entry size is fixed at 376 bytes for version 18
+	actualEntrySize := uint32(376) // Fixed size based on MagicEntry struct
 	
-	// Find first non-zero entry to skip padding
-	actualDataStart := headerSize
-	for actualDataStart < uint32(len(data))-16 {
-		// Check if we have non-zero data in next 16 bytes
-		hasData := false
-		for i := actualDataStart; i < actualDataStart+16 && i < uint32(len(data)); i++ {
-			if data[i] != 0 {
-				hasData = true
-				break
-			}
-		}
-		if hasData {
-			break
-		}
-		actualDataStart += 16
-	}
-	
-	dataSize := uint32(len(data)) - actualDataStart
-	actualEntrySize := dataSize / totalEntries
+	// Data starts at offset 376 based on analysis
+	actualDataStart := uint32(376) // Correct offset found through analysis
 	
 	offset := actualDataStart
 	for set := 0; set < MAGIC_SETS; set++ {
@@ -195,16 +178,15 @@ func (p *Parser) parseEntry(data []byte) (*MagicEntry, error) {
 	entry.Lineno = p.byteOrder.Uint32(data[offset : offset+4])
 	offset += 4
 
-	// Word 7-8 (8 bytes) - Union field
-	if entry.IsString() {
-		entry.StrRange = p.byteOrder.Uint32(data[offset : offset+4])
-		entry.StrFlags = p.byteOrder.Uint32(data[offset+4 : offset+8])
-	} else {
-		entry.NumMask = p.byteOrder.Uint64(data[offset : offset+8])
-	}
+	// Word 7-8 (8 bytes) - Union field (NumMask for all types)
+	entry.NumMask = p.byteOrder.Uint64(data[offset : offset+8])
 	offset += 8
 
-	// Words 9-24 (64 bytes) - Value
+	// Description at offset 32 (64 bytes) - CORRECTED!
+	copy(entry.Desc[:], data[offset:offset+MAXDESC])
+	offset += MAXDESC
+
+	// Value at offset 96 (64 bytes) 
 	copy(entry.Value[:], data[offset:offset+64])
 	// Convert multi-byte values according to byte order if needed
 	if !entry.IsString() {
@@ -212,19 +194,15 @@ func (p *Parser) parseEntry(data []byte) (*MagicEntry, error) {
 	}
 	offset += 64
 
-	// Words 25-40 (64 bytes) - Description
-	copy(entry.Desc[:], data[offset:offset+MAXDESC])
-	offset += MAXDESC
-
-	// Words 41-60 (80 bytes) - MIME type
-	copy(entry.MimeType[:], data[offset:offset+MAXMIME])
-	offset += MAXMIME
-
-	// Words 61-62 (8 bytes) - Apple
+	// Apple at offset 160 (8 bytes)
 	copy(entry.Apple[:], data[offset:offset+8])
 	offset += 8
 
-	// Words 63-78 (64 bytes) - Extensions
+	// MIME type at offset 168 (80 bytes) - estimated position
+	copy(entry.MimeType[:], data[offset:offset+MAXMIME])
+	offset += MAXMIME
+
+	// Extensions at offset 248 (120 bytes)
 	copy(entry.Ext[:], data[offset:offset+MAXEXT])
 
 	return entry, nil
