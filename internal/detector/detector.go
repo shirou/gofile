@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -20,6 +20,7 @@ type DatabaseInterface interface {
 type Detector struct {
 	database DatabaseInterface
 	options  *Options
+	logger   *slog.Logger
 }
 
 // Options configures detection behavior
@@ -44,9 +45,23 @@ func New(db DatabaseInterface, opts *Options) *Detector {
 	if opts == nil {
 		opts = DefaultOptions()
 	}
+	
+	// Configure logger based on debug mode
+	var logger *slog.Logger
+	if opts.Debug {
+		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}))
+	} else {
+		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		}))
+	}
+	
 	return &Detector{
 		database: db,
 		options:  opts,
+		logger:   logger,
 	}
 }
 
@@ -76,7 +91,9 @@ func (d *Detector) DetectFile(path string) (string, error) {
 
 	if d.options.Debug {
 		stat, _ := file.Stat()
-		log.Printf("DetectFile: Opened file %s, size: %d bytes", path, stat.Size())
+		d.logger.Debug("DetectFile: Opened file", 
+			"path", path,
+			"size", stat.Size())
 	}
 
 	return d.DetectReader(file)
@@ -89,10 +106,14 @@ func (d *Detector) DetectReader(reader io.Reader) (string, error) {
 	n, err := reader.Read(buffer)
 
 	if d.options.Debug {
-		log.Printf("DetectReader: Read attempt returned %d bytes, error: %v", n, err)
-		log.Printf("DetectReader: MaxReadSize: %d, buffer len: %d", d.options.MaxReadSize, len(buffer))
+		d.logger.Debug("DetectReader: Read attempt",
+			"bytes_read", n,
+			"error", err,
+			"max_read_size", d.options.MaxReadSize,
+			"buffer_len", len(buffer))
 		if n > 0 {
-			log.Printf("DetectReader: First 16 bytes: %x", buffer[:min(16, n)])
+			d.logger.Debug("DetectReader: First 16 bytes",
+				"hex", hex.EncodeToString(buffer[:min(16, n)]))
 		}
 	}
 
@@ -110,22 +131,23 @@ func (d *Detector) DetectReader(reader io.Reader) (string, error) {
 func (d *Detector) DetectBytes(data []byte) (string, error) {
 	if len(data) == 0 {
 		if d.options.Debug {
-			log.Printf("ERROR: DetectBytes received empty data")
+			d.logger.Error("ERROR: DetectBytes received empty data")
 		}
 		return "empty", nil
 	}
 
 	if d.options.Debug {
-		log.Printf("DetectBytes: Processing %d bytes of data", len(data))
+		d.logger.Debug("DetectBytes: Processing data", "bytes", len(data))
 	}
 
 	// Get all magic entries from database
 	entries := d.database.GetEntries()
 
 	if d.options.Debug {
-		log.Printf("=== Starting detection on %d bytes of data ===", len(data))
-		log.Printf("First 32 bytes: %s", hex.EncodeToString(data[:min(32, len(data))]))
-		log.Printf("Total magic entries: %d", len(entries))
+		d.logger.Debug("=== Starting detection ===",
+			"data_bytes", len(data),
+			"first_32_bytes", hex.EncodeToString(data[:min(32, len(data))]),
+			"total_entries", len(entries))
 	}
 
 	if len(entries) == 0 {
@@ -145,13 +167,15 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 		if d.isSpecificBinarySignature(entry) {
 			if match, result := d.matchEntry(data, entry, data); match {
 				if d.options.Debug {
-					log.Printf("✓ SPECIFIC-BINARY MATCH at entry %d: %s", i, result)
+					d.logger.Debug("✓ SPECIFIC-BINARY MATCH",
+						"entry", i,
+						"result", result)
 				}
 				
 				// Skip matches with empty results to continue searching
 				if len(strings.TrimSpace(result)) == 0 {
 					if d.options.Debug {
-						log.Printf("  Skipping empty result, continuing search...")
+						d.logger.Debug("  Skipping empty result, continuing search...")
 					}
 					continue
 				}
@@ -159,7 +183,7 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 				// Additional validation before accepting result
 				if !d.isValidDescription(result) {
 					if d.options.Debug {
-						log.Printf("  Skipping invalid description: %x", []byte(result))
+						d.logger.Debug("  Skipping invalid description", "hex", hex.EncodeToString([]byte(result)))
 					}
 					continue
 				}
@@ -182,13 +206,13 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 
 		if match, result := d.matchEntry(data, entry, data); match {
 			if d.options.Debug {
-				log.Printf("✓ HIGH-PRIORITY MATCH at entry %d: %s", i, result)
+				d.logger.Debug("✓ HIGH-PRIORITY MATCH", "entry", i, "result", result)
 			}
 
 			// Skip matches with empty results to continue searching
 			if len(strings.TrimSpace(result)) == 0 {
 				if d.options.Debug {
-					log.Printf("  Skipping empty result, continuing search...")
+					d.logger.Debug("  Skipping empty result, continuing search...")
 				}
 				continue
 			}
@@ -196,7 +220,7 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 			// Additional validation before accepting result
 			if !d.isValidDescription(result) {
 				if d.options.Debug {
-					log.Printf("  Skipping invalid description: %x", []byte(result))
+					d.logger.Debug("  Skipping invalid description", "hex", hex.EncodeToString([]byte(result)))
 				}
 				continue
 			}
@@ -208,8 +232,7 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 
 		// Log first few attempts in debug mode
 		if d.options.Debug && matchAttempts <= 10 {
-			log.Printf("Entry %d (HP): Type=%d, Offset=%d, Desc='%s'",
-				i, entry.Type, entry.Offset, entry.GetDescription())
+			d.logger.Debug("Entry (HP)", "index", i, "type", entry.Type, "offset", entry.Offset, "desc", entry.GetDescription())
 		}
 	}
 
@@ -226,13 +249,13 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 
 		if match, result := d.matchEntry(data, entry, data); match {
 			if d.options.Debug {
-				log.Printf("✓ MEDIUM-PRIORITY MATCH at entry %d: %s", i, result)
+				d.logger.Debug("✓ MEDIUM-PRIORITY MATCH", "entry", i, "result", result)
 			}
 
 			// Skip matches with empty results to continue searching
 			if len(strings.TrimSpace(result)) == 0 {
 				if d.options.Debug {
-					log.Printf("  Skipping empty result, continuing search...")
+					d.logger.Debug("  Skipping empty result, continuing search...")
 				}
 				continue
 			}
@@ -240,7 +263,7 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 			// Additional validation before accepting result
 			if !d.isValidDescription(result) {
 				if d.options.Debug {
-					log.Printf("  Skipping invalid description: %x", []byte(result))
+					d.logger.Debug("  Skipping invalid description", "hex", hex.EncodeToString([]byte(result)))
 				}
 				continue
 			}
@@ -273,13 +296,13 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 
 			if match, result := d.matchEntry(data, entry, data); match {
 				if d.options.Debug {
-					log.Printf("✓ MEDIUM-PRIORITY MATCH at entry %d: %s", i, result)
+					d.logger.Debug("✓ MEDIUM-PRIORITY MATCH", "entry", i, "result", result)
 				}
 
 				// Skip matches with empty results to continue searching
 				if len(strings.TrimSpace(result)) == 0 {
 					if d.options.Debug {
-						log.Printf("  Skipping empty result, continuing search...")
+						d.logger.Debug("  Skipping empty result, continuing search...")
 					}
 					continue
 				}
@@ -287,7 +310,7 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 				// Additional validation before accepting result
 				if !d.isValidDescription(result) {
 					if d.options.Debug {
-						log.Printf("  Skipping invalid description: %x", []byte(result))
+						d.logger.Debug("  Skipping invalid description", "hex", hex.EncodeToString([]byte(result)))
 					}
 					continue
 				}
@@ -310,13 +333,13 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 
 		if match, result := d.matchEntry(data, entry, data); match {
 			if d.options.Debug {
-				log.Printf("✓ LOW-PRIORITY MATCH at entry %d: %s", i, result)
+				d.logger.Debug("✓ LOW-PRIORITY MATCH", "entry", i, "result", result)
 			}
 
 			// Skip matches with empty results to continue searching
 			if len(strings.TrimSpace(result)) == 0 {
 				if d.options.Debug {
-					log.Printf("  Skipping empty result, continuing search...")
+					d.logger.Debug("  Skipping empty result, continuing search...")
 				}
 				continue
 			}
@@ -324,7 +347,7 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 			// Additional validation before accepting result
 			if !d.isValidDescription(result) {
 				if d.options.Debug {
-					log.Printf("  Skipping invalid description: %x", []byte(result))
+					d.logger.Debug("  Skipping invalid description", "hex", hex.EncodeToString([]byte(result)))
 				}
 				continue
 			}
@@ -335,7 +358,7 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 	}
 
 	if d.options.Debug {
-		log.Printf("No matches found after checking %d entries", matchAttempts)
+		d.logger.Debug("No matches found after checking entries", "match_attempts", matchAttempts)
 	}
 
 	// Enhanced fallback detection
@@ -595,8 +618,8 @@ func (d *Detector) matchEntry(data []byte, entry *magic.MagicEntry, fullData []b
 // performMatch performs the actual pattern matching
 func (d *Detector) performMatch(data []byte, entry *magic.MagicEntry, fullData []byte) (bool, string) {
 	if d.options.Debug {
-		log.Printf("  Matching type %d at offset %d", entry.Type, entry.Offset)
-		log.Printf("  Data at offset: %s", hex.EncodeToString(data[:min(16, len(data))]))
+		d.logger.Debug("  Matching type at offset", "type", entry.Type, "offset", entry.Offset)
+		d.logger.Debug("  Data at offset", "hex", hex.EncodeToString(data[:min(16, len(data))]))
 	}
 
 	switch entry.Type {
@@ -722,7 +745,7 @@ func (d *Detector) performMatch(data []byte, entry *magic.MagicEntry, fullData [
 		return d.matchCustomType(data, entry, fullData)
 	default:
 		if d.options.Debug {
-			log.Printf("  Unimplemented type: %d", entry.Type)
+			d.logger.Debug("  Unimplemented type", "type", entry.Type)
 		}
 		return false, ""
 	}

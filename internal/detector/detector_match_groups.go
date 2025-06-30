@@ -1,7 +1,7 @@
 package detector
 
 import (
-	"log"
+	"fmt"
 	"strings"
 
 	"github.com/shirou/gofile/internal/magic"
@@ -30,7 +30,7 @@ func (d *Detector) matchStringGroup(data []byte, entries []*magic.MagicEntry) (b
 			desc := entry.GetDescription()
 			if len(desc) > 0 && d.isValidDescription(desc) {
 				if d.options.Debug {
-					log.Printf("✓ STRING GROUP: pattern '%s' matched", pattern)
+					d.logger.Debug("✓ STRING GROUP: pattern matched", "pattern", pattern)
 				}
 				return true, desc
 			}
@@ -64,7 +64,8 @@ func (d *Detector) matchByteGroup(data []byte, entries []*magic.MagicEntry) (boo
 				desc := entry.GetDescription()
 				if len(desc) > 0 && d.isValidDescription(desc) {
 					if d.options.Debug {
-						log.Printf("✓ BYTE GROUP: value 0x%02x matched", firstByte)
+						d.logger.Debug("✓ BYTE GROUP: value matched", 
+							"value", fmt.Sprintf("0x%02x", firstByte))
 					}
 					return true, desc
 				}
@@ -112,7 +113,8 @@ func (d *Detector) matchShortGroup(data []byte, entries []*magic.MagicEntry) (bo
 				desc := entry.GetDescription()
 				if len(desc) > 0 && d.isValidDescription(desc) {
 					if d.options.Debug {
-						log.Printf("✓ SHORT GROUP: value 0x%04x matched", actual)
+						d.logger.Debug("✓ SHORT GROUP: value matched", 
+							"value", fmt.Sprintf("0x%04x", actual))
 					}
 					return true, desc
 				}
@@ -163,7 +165,8 @@ func (d *Detector) matchLongGroup(data []byte, entries []*magic.MagicEntry) (boo
 				desc := entry.GetDescription()
 				if len(desc) > 0 && d.isValidDescription(desc) {
 					if d.options.Debug {
-						log.Printf("✓ LONG GROUP: value 0x%08x matched", actual)
+						d.logger.Debug("✓ LONG GROUP: value matched", 
+							"value", fmt.Sprintf("0x%08x", actual))
 					}
 					return true, desc
 				}

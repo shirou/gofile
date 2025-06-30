@@ -1,12 +1,19 @@
 package detector
 
 import (
-	"log"
+	"fmt"
+	"log/slog"
+	"os"
 	"strings"
 	"sync"
 
 	"github.com/shirou/gofile/internal/magic"
 )
+
+// Default logger for statistics and optimization logging
+var statsLogger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+	Level: slog.LevelInfo,
+}))
 
 // TypeStats holds statistics about magic type usage for optimization
 type TypeStats struct {
@@ -114,7 +121,9 @@ func (d *Detector) OptimizedMatchEntry(data []byte, entry *magic.MagicEntry, ful
 	if cache != nil {
 		if result, exists := cache.GetCachedResult(cacheKey); exists {
 			if d.options.Debug {
-				log.Printf("Cache hit for type %d at offset %d", entry.Type, entry.Offset)
+				d.logger.Debug("Cache hit", 
+					"type", entry.Type, 
+					"offset", entry.Offset)
 			}
 			return result != "", result
 		}
@@ -199,13 +208,14 @@ func (d *Detector) ValidateDataIntegrity(data []byte, entry *magic.MagicEntry, r
 func (d *Detector) EnhancedDetectBytes(data []byte, cache *DetectorCache) (string, error) {
 	if len(data) == 0 {
 		if d.options.Debug {
-			log.Printf("ERROR: EnhancedDetectBytes received empty data")
+			d.logger.Error("ERROR: EnhancedDetectBytes received empty data")
 		}
 		return "empty", nil
 	}
 
 	if d.options.Debug {
-		log.Printf("EnhancedDetectBytes: Processing %d bytes with caching enabled", len(data))
+		d.logger.Debug("EnhancedDetectBytes: Processing data with caching enabled", 
+			"bytes", len(data))
 	}
 
 	// Get all magic entries from database
@@ -220,7 +230,7 @@ func (d *Detector) EnhancedDetectBytes(data []byte, cache *DetectorCache) (strin
 	if cache != nil {
 		typeOrder = cache.GetOptimizedTypeOrder()
 		if d.options.Debug && len(typeOrder) > 0 {
-			log.Printf("Using optimized type order based on success rates")
+			d.logger.Debug("Using optimized type order based on success rates")
 		}
 	}
 
@@ -234,7 +244,9 @@ func (d *Detector) EnhancedDetectBytes(data []byte, cache *DetectorCache) (strin
 				
 				if match, result := d.OptimizedMatchEntry(data, entry, data, cache); match {
 					if d.options.Debug {
-						log.Printf("✓ OPTIMIZED MATCH at entry %d: %s", i, result)
+						d.logger.Debug("✓ OPTIMIZED MATCH", 
+							"entry", i, 
+							"result", result)
 					}
 					
 					if len(strings.TrimSpace(result)) == 0 || !d.ValidateDataIntegrity(data, entry, result) {
@@ -256,8 +268,10 @@ func (dc *DetectorCache) PrintCacheStatistics() {
 	dc.mutex.RLock()
 	defer dc.mutex.RUnlock()
 	
-	log.Printf("=== Cache Statistics ===")
-	log.Printf("Cache entries: %d/%d", len(dc.cache), dc.maxCacheSize)
+	statsLogger.Info("=== Cache Statistics ===")
+	statsLogger.Info("Cache entries", 
+		"current", len(dc.cache), 
+		"max", dc.maxCacheSize)
 	
 	totalMatches := int64(0)
 	totalSuccesses := int64(0)
@@ -265,8 +279,11 @@ func (dc *DetectorCache) PrintCacheStatistics() {
 	for magicType, stats := range dc.stats {
 		if stats.TotalMatches > 0 {
 			successRate := float64(stats.SuccessfulMatches) / float64(stats.TotalMatches) * 100
-			log.Printf("Type %d: %d matches, %.1f%% success, avg offset: %.1f", 
-				magicType, stats.TotalMatches, successRate, stats.AverageOffset)
+			statsLogger.Info("Type statistics", 
+				"type", magicType, 
+				"matches", stats.TotalMatches, 
+				"success_rate", fmt.Sprintf("%.1f%%", successRate), 
+				"avg_offset", fmt.Sprintf("%.1f", stats.AverageOffset))
 			
 			totalMatches += stats.TotalMatches
 			totalSuccesses += stats.SuccessfulMatches
@@ -275,6 +292,8 @@ func (dc *DetectorCache) PrintCacheStatistics() {
 	
 	if totalMatches > 0 {
 		overallSuccess := float64(totalSuccesses) / float64(totalMatches) * 100
-		log.Printf("Overall: %d matches, %.1f%% success rate", totalMatches, overallSuccess)
+		statsLogger.Info("Overall statistics", 
+			"total_matches", totalMatches, 
+			"success_rate", fmt.Sprintf("%.1f%%", overallSuccess))
 	}
 }

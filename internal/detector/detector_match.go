@@ -2,7 +2,6 @@ package detector
 
 import (
 	"fmt"
-	"log"
 	"regexp"
 	"strings"
 
@@ -32,7 +31,9 @@ func (d *Detector) matchByte(data []byte, entry *magic.MagicEntry, fullData []by
 		// Skip entries with corrupted/binary descriptions
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", 
+					"description_hex", fmt.Sprintf("%x", []byte(desc)),
+					"match_type", "byte")
 			}
 			return false, ""
 		}
@@ -99,7 +100,9 @@ func (d *Detector) matchShort(data []byte, entry *magic.MagicEntry, fullData []b
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping SHORT entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping SHORT entry with corrupted description", 
+					"description_hex", fmt.Sprintf("%x", []byte(desc)),
+					"match_type", "short")
 			}
 			return false, ""
 		}
@@ -152,7 +155,7 @@ func (d *Detector) matchLong(data []byte, entry *magic.MagicEntry, fullData []by
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping SHORT entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "SHORT", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -170,9 +173,9 @@ func (d *Detector) matchString(data []byte, entry *magic.MagicEntry) (bool, stri
 	pattern := entry.GetValueAsString()
 	
 	if d.options.Debug {
-		log.Printf("  String match: pattern='%s' (len=%d)", pattern, len(pattern))
+		d.logger.Debug("String match attempt", "pattern", pattern, "pattern_length", len(pattern))
 		if len(data) >= len(pattern) {
-			log.Printf("  Actual data: '%s'", string(data[:len(pattern)]))
+			d.logger.Debug("Actual data examined", "data", string(data[:len(pattern)]))
 		}
 	}
 	
@@ -182,7 +185,7 @@ func (d *Detector) matchString(data []byte, entry *magic.MagicEntry) (bool, stri
 
 	if len(data) < len(pattern) {
 		if d.options.Debug {
-			log.Printf("  Not enough data: need %d bytes, have %d", len(pattern), len(data))
+			d.logger.Debug("Insufficient data for pattern match", "bytes_needed", len(pattern), "bytes_available", len(data))
 		}
 		return false, ""
 	}
@@ -191,7 +194,7 @@ func (d *Detector) matchString(data []byte, entry *magic.MagicEntry) (bool, stri
 	actual := string(data[:len(pattern)])
 	if actual == pattern {
 		if d.options.Debug {
-			log.Printf("  ✓ String match!")
+			d.logger.Debug("String match successful")
 		}
 		
 		desc := entry.GetDescription()
@@ -203,11 +206,11 @@ func (d *Detector) matchString(data []byte, entry *magic.MagicEntry) (bool, stri
 			if len(mimeDesc) > 0 && d.isValidDescription(mimeDesc) {
 				desc = mimeDesc
 				if d.options.Debug {
-					log.Printf("  Using MimeType as description: %s", desc)
+					d.logger.Debug("Using MimeType as description", "description", desc)
 				}
 			} else {
 				if d.options.Debug {
-					log.Printf("  Skipping STRING entry with corrupted description: %x", []byte(desc))
+					d.logger.Debug("Skipping entry with corrupted description", "entry_type", "STRING", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 				}
 				return false, ""
 			}
@@ -218,7 +221,7 @@ func (d *Detector) matchString(data []byte, entry *magic.MagicEntry) (bool, stri
 			// Only accept very specific patterns that might be meaningful
 			if len(pattern) >= 3 && !strings.Contains(pattern, "\x00") {
 				if d.options.Debug {
-					log.Printf("  String match has no description, skipping")
+					d.logger.Debug("String match has no description, skipping")
 				}
 				return false, ""
 			}
@@ -228,7 +231,7 @@ func (d *Detector) matchString(data []byte, entry *magic.MagicEntry) (bool, stri
 	}
 	
 	if d.options.Debug {
-		log.Printf("  ✗ No match")
+		d.logger.Debug("No match found")
 	}
 	
 	return false, ""
@@ -249,8 +252,7 @@ func (d *Detector) matchOffset(data []byte, entry *magic.MagicEntry, fullData []
 // matchIndirect handles complex indirect addressing (Type 41)
 func (d *Detector) matchIndirect(data []byte, entry *magic.MagicEntry) (bool, string) {
 	if d.options.Debug {
-		log.Printf("  INDIRECT: offset=%d, in_offset=%d, flags=0x%x", 
-			entry.Offset, entry.InOffset, entry.Flag)
+		d.logger.Debug("INDIRECT operation", "offset", entry.Offset, "in_offset", entry.InOffset, "flags", fmt.Sprintf("0x%x", entry.Flag))
 	}
 	
 	// Basic indirect addressing implementation
@@ -259,7 +261,7 @@ func (d *Detector) matchIndirect(data []byte, entry *magic.MagicEntry) (bool, st
 	// Check if we have enough data for the base offset
 	if entry.Offset < 0 || int(entry.Offset) >= len(data) {
 		if d.options.Debug {
-			log.Printf("  INDIRECT: base offset %d out of range", entry.Offset)
+			d.logger.Debug("INDIRECT: base offset out of range", "offset", entry.Offset)
 		}
 		return false, ""
 	}
@@ -279,7 +281,7 @@ func (d *Detector) matchIndirect(data []byte, entry *magic.MagicEntry) (bool, st
 		indirectOffset += int(entry.InOffset)
 		
 		if d.options.Debug {
-			log.Printf("  INDIRECT: computed offset=%d", indirectOffset)
+			d.logger.Debug("INDIRECT: computed offset", "offset", indirectOffset)
 		}
 		
 		// Check if the computed offset is valid
@@ -290,7 +292,7 @@ func (d *Detector) matchIndirect(data []byte, entry *magic.MagicEntry) (bool, st
 			
 			if len(desc) > 0 && d.isValidDescription(desc) {
 				if d.options.Debug {
-					log.Printf("  ✓ INDIRECT: valid offset, using description: %s", desc)
+					d.logger.Debug("INDIRECT: valid offset found", "description", desc)
 				}
 				return true, desc
 			}
@@ -298,7 +300,7 @@ func (d *Detector) matchIndirect(data []byte, entry *magic.MagicEntry) (bool, st
 	}
 	
 	if d.options.Debug {
-		log.Printf("  INDIRECT: complex addressing not fully supported")
+		d.logger.Debug("INDIRECT: complex addressing not fully supported")
 	}
 	return false, ""
 }
@@ -310,12 +312,12 @@ func (d *Detector) matchUse(data []byte, entry *magic.MagicEntry) (bool, string)
 	referenceName := entry.GetValueAsString()
 	
 	if d.options.Debug {
-		log.Printf("  FILE_USE: looking for reference '%s'", referenceName)
+		d.logger.Debug("FILE_USE: looking for reference", "reference_name", referenceName)
 	}
 	
 	if len(referenceName) == 0 {
 		if d.options.Debug {
-			log.Printf("  FILE_USE: no reference name specified")
+			d.logger.Debug("FILE_USE: no reference name specified")
 		}
 		return false, ""
 	}
@@ -330,7 +332,7 @@ func (d *Detector) matchUse(data []byte, entry *magic.MagicEntry) (bool, string)
 		// If we have a valid description, use it directly
 		// This handles cases where FILE_USE entries have standalone descriptions
 		if d.options.Debug {
-			log.Printf("  ✓ FILE_USE: using direct description: %s", desc)
+			d.logger.Debug("FILE_USE: using direct description", "description", desc)
 		}
 		return true, desc
 	}
@@ -341,7 +343,7 @@ func (d *Detector) matchUse(data []byte, entry *magic.MagicEntry) (bool, string)
 	// 3. Handle circular references and depth limits
 	
 	if d.options.Debug {
-		log.Printf("  FILE_USE: complex reference '%s' not yet supported", referenceName)
+		d.logger.Debug("FILE_USE: complex reference not yet supported", "reference_name", referenceName)
 	}
 	
 	return false, ""
@@ -372,7 +374,7 @@ func (d *Detector) matchBELong(data []byte, entry *magic.MagicEntry, fullData []
 		uint32(entry.Value[3])<<24
 
 	if d.options.Debug {
-		log.Printf("  BELONG: actual=0x%08x, expected=0x%08x", actual, expected)
+		d.logger.Debug("BELONG comparison", "actual", fmt.Sprintf("0x%08x", actual), "expected", fmt.Sprintf("0x%08x", expected))
 	}
 
 	// Apply mask if specified
@@ -388,7 +390,7 @@ func (d *Detector) matchBELong(data []byte, entry *magic.MagicEntry, fullData []
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping SHORT entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "SHORT", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -417,7 +419,7 @@ func (d *Detector) matchLELong(data []byte, entry *magic.MagicEntry, fullData []
 		uint32(entry.Value[3])<<24
 
 	if d.options.Debug {
-		log.Printf("  LELONG: actual=0x%08x, expected=0x%08x", actual, expected)
+		d.logger.Debug("LELONG comparison", "actual", fmt.Sprintf("0x%08x", actual), "expected", fmt.Sprintf("0x%08x", expected))
 	}
 
 	// Apply mask if specified
@@ -451,7 +453,7 @@ func (d *Detector) matchBEShort(data []byte, entry *magic.MagicEntry, fullData [
 	expected := uint16(entry.Value[0]) | uint16(entry.Value[1])<<8
 
 	if d.options.Debug {
-		log.Printf("  BESHORT: actual=0x%04x, expected=0x%04x", actual, expected)
+		d.logger.Debug("BESHORT comparison", "actual", fmt.Sprintf("0x%04x", actual), "expected", fmt.Sprintf("0x%04x", expected))
 	}
 
 	// Apply mask if specified
@@ -467,7 +469,7 @@ func (d *Detector) matchBEShort(data []byte, entry *magic.MagicEntry, fullData [
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping SHORT entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "SHORT", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -493,7 +495,7 @@ func (d *Detector) matchLEShort(data []byte, entry *magic.MagicEntry, fullData [
 	expected := uint16(entry.Value[0]) | uint16(entry.Value[1])<<8
 
 	if d.options.Debug {
-		log.Printf("  LESHORT: actual=0x%04x, expected=0x%04x", actual, expected)
+		d.logger.Debug("LESHORT comparison", "actual", fmt.Sprintf("0x%04x", actual), "expected", fmt.Sprintf("0x%04x", expected))
 	}
 
 	// Apply mask if specified
@@ -509,7 +511,7 @@ func (d *Detector) matchLEShort(data []byte, entry *magic.MagicEntry, fullData [
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping SHORT entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "SHORT", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -535,7 +537,7 @@ func (d *Detector) matchBEQuad(data []byte, entry *magic.MagicEntry, fullData []
 	expected := readUint64(entry.Value[:8], false)
 
 	if d.options.Debug {
-		log.Printf("  BEQUAD: actual=0x%016x, expected=0x%016x", actual, expected)
+		d.logger.Debug("BEQUAD comparison", "actual", fmt.Sprintf("0x%016x", actual), "expected", fmt.Sprintf("0x%016x", expected))
 	}
 
 	// Apply mask if specified
@@ -551,7 +553,7 @@ func (d *Detector) matchBEQuad(data []byte, entry *magic.MagicEntry, fullData []
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping BEQUAD entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "BEQUAD", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -577,7 +579,7 @@ func (d *Detector) matchLEQuad(data []byte, entry *magic.MagicEntry, fullData []
 	expected := entry.GetValueAsUint64()
 
 	if d.options.Debug {
-		log.Printf("  LEQUAD: actual=0x%016x, expected=0x%016x", actual, expected)
+		d.logger.Debug("LEQUAD comparison", "actual", fmt.Sprintf("0x%016x", actual), "expected", fmt.Sprintf("0x%016x", expected))
 	}
 
 	// Apply mask if specified
@@ -593,7 +595,7 @@ func (d *Detector) matchLEQuad(data []byte, entry *magic.MagicEntry, fullData []
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping LEQUAD entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "LEQUAD", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -616,7 +618,7 @@ func (d *Detector) matchPString(data []byte, entry *magic.MagicEntry) (bool, str
 	strLen := int(data[0])
 	if len(data) < 1+strLen {
 		if d.options.Debug {
-			log.Printf("  PSTRING: not enough data for string length %d", strLen)
+			d.logger.Debug("PSTRING: insufficient data for string length", "required_length", strLen)
 		}
 		return false, ""
 	}
@@ -628,8 +630,7 @@ func (d *Detector) matchPString(data []byte, entry *magic.MagicEntry) (bool, str
 	pattern := entry.GetValueAsString()
 	
 	if d.options.Debug {
-		log.Printf("  PSTRING match: pattern='%s' (len=%d), actual='%s' (len=%d)", 
-			pattern, len(pattern), actual, len(actual))
+		d.logger.Debug("PSTRING match comparison", "pattern", pattern, "pattern_length", len(pattern), "actual", actual, "actual_length", len(actual))
 	}
 	
 	if len(pattern) == 0 {
@@ -639,7 +640,7 @@ func (d *Detector) matchPString(data []byte, entry *magic.MagicEntry) (bool, str
 	// Compare strings
 	if actual == pattern {
 		if d.options.Debug {
-			log.Printf("  ✓ PSTRING match!")
+			d.logger.Debug("PSTRING match successful")
 		}
 		
 		desc := entry.GetDescription()
@@ -647,14 +648,14 @@ func (d *Detector) matchPString(data []byte, entry *magic.MagicEntry) (bool, str
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping PSTRING entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "PSTRING", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
 		
 		if len(desc) == 0 {
 			if d.options.Debug {
-				log.Printf("  PSTRING match has no description, skipping")
+				d.logger.Debug("PSTRING match has no description, skipping")
 			}
 			return false, ""
 		}
@@ -663,7 +664,7 @@ func (d *Detector) matchPString(data []byte, entry *magic.MagicEntry) (bool, str
 	}
 	
 	if d.options.Debug {
-		log.Printf("  ✗ PSTRING no match")
+		d.logger.Debug("PSTRING no match found")
 	}
 	
 	return false, ""
@@ -679,8 +680,7 @@ func (d *Detector) matchGUID(data []byte, entry *magic.MagicEntry) (bool, string
 	for i := 0; i < 16; i++ {
 		if i < len(entry.Value) && data[i] != entry.Value[i] {
 			if d.options.Debug {
-				log.Printf("  GUID mismatch at byte %d: got 0x%02x, expected 0x%02x", 
-					i, data[i], entry.Value[i])
+				d.logger.Debug("GUID mismatch", "byte_position", i, "got", fmt.Sprintf("0x%02x", data[i]), "expected", fmt.Sprintf("0x%02x", entry.Value[i]))
 			}
 			return false, ""
 		}
@@ -694,7 +694,7 @@ func (d *Detector) matchGUID(data []byte, entry *magic.MagicEntry) (bool, string
 			data[6], data[7],
 			data[8], data[9],
 			data[10], data[11], data[12], data[13], data[14], data[15])
-		log.Printf("  ✓ GUID match: %s", guid)
+		d.logger.Debug("GUID match successful", "guid", guid)
 	}
 	
 	desc := entry.GetDescription()
@@ -702,14 +702,14 @@ func (d *Detector) matchGUID(data []byte, entry *magic.MagicEntry) (bool, string
 	// Check if description contains only printable characters
 	if len(desc) > 0 && !d.isValidDescription(desc) {
 		if d.options.Debug {
-			log.Printf("  Skipping GUID entry with corrupted description: %x", []byte(desc))
+			d.logger.Debug("Skipping entry with corrupted description", "entry_type", "GUID", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 		}
 		return false, ""
 	}
 	
 	if len(desc) == 0 {
 		if d.options.Debug {
-			log.Printf("  GUID match has no description, skipping")
+			d.logger.Debug("GUID match has no description, skipping")
 		}
 		return false, ""
 	}
@@ -731,7 +731,7 @@ func (d *Detector) matchDER(data []byte, entry *magic.MagicEntry) (bool, string)
 	lengthByte := data[1]
 	
 	if d.options.Debug {
-		log.Printf("  DER: tag=0x%02x, length_byte=0x%02x", tag, lengthByte)
+		d.logger.Debug("DER parsing", "tag", fmt.Sprintf("0x%02x", tag), "length_byte", fmt.Sprintf("0x%02x", lengthByte))
 	}
 	
 	// Get expected pattern from magic entry
@@ -761,7 +761,7 @@ func (d *Detector) matchDER(data []byte, entry *magic.MagicEntry) (bool, string)
 		actual := string(data[:len(expectedPattern)])
 		if actual != expectedPattern {
 			if d.options.Debug {
-				log.Printf("  DER pattern mismatch: expected '%s', got '%s'", expectedPattern, actual)
+				d.logger.Debug("DER pattern mismatch", "expected", expectedPattern, "got", actual)
 			}
 			return false, ""
 		}
@@ -778,7 +778,7 @@ func (d *Detector) matchDER(data []byte, entry *magic.MagicEntry) (bool, string)
 		if lengthOctets == 0 || lengthOctets > 4 || len(data) < 2+lengthOctets {
 			// Invalid or unsupported long form
 			if d.options.Debug {
-				log.Printf("  DER invalid long form length: %d octets", lengthOctets)
+				d.logger.Debug("DER invalid long form length", "octets", lengthOctets)
 			}
 			return false, ""
 		}
@@ -790,7 +790,7 @@ func (d *Detector) matchDER(data []byte, entry *magic.MagicEntry) (bool, string)
 	}
 	
 	if d.options.Debug {
-		log.Printf("  ✓ DER match: tag=0x%02x, length=%d", tag, totalLength)
+		d.logger.Debug("DER match successful", "tag", fmt.Sprintf("0x%02x", tag), "length", totalLength)
 	}
 	
 	desc := entry.GetDescription()
@@ -798,7 +798,7 @@ func (d *Detector) matchDER(data []byte, entry *magic.MagicEntry) (bool, string)
 	// Check if description contains only printable characters
 	if len(desc) > 0 && !d.isValidDescription(desc) {
 		if d.options.Debug {
-			log.Printf("  Skipping DER entry with corrupted description: %x", []byte(desc))
+			d.logger.Debug("Skipping entry with corrupted description", "entry_type", "DER", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 		}
 		return false, ""
 	}
@@ -857,7 +857,7 @@ func (d *Detector) matchFloat(data []byte, entry *magic.MagicEntry, fullData []b
 	expected := entry.GetValueAsFloat64()
 
 	if d.options.Debug {
-		log.Printf("  FLOAT: actual=%f, expected=%f", actual, expected)
+		d.logger.Debug("FLOAT comparison", "actual", actual, "expected", expected)
 	}
 
 	match := compareFloats(float64(actual), expected, entry.Reln)
@@ -867,7 +867,7 @@ func (d *Detector) matchFloat(data []byte, entry *magic.MagicEntry, fullData []b
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping FLOAT entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "FLOAT", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -893,7 +893,7 @@ func (d *Detector) matchDouble(data []byte, entry *magic.MagicEntry, fullData []
 	expected := entry.GetValueAsFloat64()
 
 	if d.options.Debug {
-		log.Printf("  DOUBLE: actual=%f, expected=%f", actual, expected)
+		d.logger.Debug("DOUBLE comparison", "actual", actual, "expected", expected)
 	}
 
 	match := compareFloats(actual, expected, entry.Reln)
@@ -903,7 +903,7 @@ func (d *Detector) matchDouble(data []byte, entry *magic.MagicEntry, fullData []
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping DOUBLE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "DOUBLE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -929,7 +929,7 @@ func (d *Detector) matchBEDate(data []byte, entry *magic.MagicEntry, fullData []
 	expected := uint32(entry.GetValueAsUint64())
 
 	if d.options.Debug {
-		log.Printf("  BEDATE: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("BEDATE comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -945,7 +945,7 @@ func (d *Detector) matchBEDate(data []byte, entry *magic.MagicEntry, fullData []
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping BEDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "BEDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -971,7 +971,7 @@ func (d *Detector) matchLEDate(data []byte, entry *magic.MagicEntry, fullData []
 	expected := uint32(entry.GetValueAsUint64())
 
 	if d.options.Debug {
-		log.Printf("  LEDATE: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("LEDATE comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -987,7 +987,7 @@ func (d *Detector) matchLEDate(data []byte, entry *magic.MagicEntry, fullData []
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping LEDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "LEDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1013,7 +1013,7 @@ func (d *Detector) matchQuad(data []byte, entry *magic.MagicEntry, fullData []by
 	expected := entry.GetValueAsUint64()
 
 	if d.options.Debug {
-		log.Printf("  QUAD: actual=0x%016x, expected=0x%016x", actual, expected)
+		d.logger.Debug("QUAD comparison", "actual", fmt.Sprintf("0x%016x", actual), "expected", fmt.Sprintf("0x%016x", expected))
 	}
 
 	// Apply mask if specified
@@ -1029,7 +1029,7 @@ func (d *Detector) matchQuad(data []byte, entry *magic.MagicEntry, fullData []by
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping QUAD entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "QUAD", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1055,7 +1055,7 @@ func (d *Detector) matchBEFloat(data []byte, entry *magic.MagicEntry, fullData [
 	expected := float64(readFloat32(entry.Value[:4], false))
 
 	if d.options.Debug {
-		log.Printf("  BEFLOAT: actual=%f, expected=%f", actual, expected)
+		d.logger.Debug("BEFLOAT comparison", "actual", actual, "expected", expected)
 	}
 
 	match := compareFloats(float64(actual), expected, entry.Reln)
@@ -1065,7 +1065,7 @@ func (d *Detector) matchBEFloat(data []byte, entry *magic.MagicEntry, fullData [
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping BEFLOAT entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "BEFLOAT", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1091,7 +1091,7 @@ func (d *Detector) matchLEFloat(data []byte, entry *magic.MagicEntry, fullData [
 	expected := float64(readFloat32(entry.Value[:4], true))
 
 	if d.options.Debug {
-		log.Printf("  LEFLOAT: actual=%f, expected=%f", actual, expected)
+		d.logger.Debug("LEFLOAT comparison", "actual", actual, "expected", expected)
 	}
 
 	match := compareFloats(float64(actual), expected, entry.Reln)
@@ -1101,7 +1101,7 @@ func (d *Detector) matchLEFloat(data []byte, entry *magic.MagicEntry, fullData [
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping LEFLOAT entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "LEFLOAT", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1127,7 +1127,7 @@ func (d *Detector) matchBEDouble(data []byte, entry *magic.MagicEntry, fullData 
 	expected := readFloat64(entry.Value[:8], false)
 
 	if d.options.Debug {
-		log.Printf("  BEDOUBLE: actual=%f, expected=%f", actual, expected)
+		d.logger.Debug("BEDOUBLE comparison", "actual", actual, "expected", expected)
 	}
 
 	match := compareFloats(actual, expected, entry.Reln)
@@ -1137,7 +1137,7 @@ func (d *Detector) matchBEDouble(data []byte, entry *magic.MagicEntry, fullData 
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping BEDOUBLE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "BEDOUBLE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1163,7 +1163,7 @@ func (d *Detector) matchLEDouble(data []byte, entry *magic.MagicEntry, fullData 
 	expected := readFloat64(entry.Value[:8], true)
 
 	if d.options.Debug {
-		log.Printf("  LEDOUBLE: actual=%f, expected=%f", actual, expected)
+		d.logger.Debug("LEDOUBLE comparison", "actual", actual, "expected", expected)
 	}
 
 	match := compareFloats(actual, expected, entry.Reln)
@@ -1173,7 +1173,7 @@ func (d *Detector) matchLEDouble(data []byte, entry *magic.MagicEntry, fullData 
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping LEDOUBLE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "LEDOUBLE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1194,20 +1194,20 @@ func (d *Detector) matchRegex(data []byte, entry *magic.MagicEntry) (bool, strin
 	}
 	
 	if d.options.Debug {
-		log.Printf("  REGEX: pattern='%s', data_len=%d", pattern, len(data))
+		d.logger.Debug("REGEX pattern check", "pattern", pattern, "data_length", len(data))
 	}
 	
 	// Compile the regular expression
 	regex, err := regexp.Compile(pattern)
 	if err != nil {
 		if d.options.Debug {
-			log.Printf("  REGEX: invalid pattern '%s': %v", pattern, err)
+			d.logger.Debug("REGEX: invalid pattern", "pattern", pattern, "error", err)
 		}
 		// Fallback to simple string matching for invalid patterns
 		text := string(data)
 		if strings.Contains(text, pattern) {
 			if d.options.Debug {
-				log.Printf("  ✓ REGEX: fallback string match")
+				d.logger.Debug("✓ REGEX: fallback string match")
 			}
 			desc := entry.GetDescription()
 			if len(desc) > 0 && d.isValidDescription(desc) {
@@ -1227,26 +1227,26 @@ func (d *Detector) matchRegex(data []byte, entry *magic.MagicEntry) (bool, strin
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping REGEX entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "REGEX", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
 		
 		if len(desc) == 0 {
 			if d.options.Debug {
-				log.Printf("  REGEX match has no description, skipping")
+				d.logger.Debug("REGEX match has no description, skipping")
 			}
 			return false, ""
 		}
 		
 		if d.options.Debug {
-			log.Printf("  ✓ REGEX: pattern '%s' matched", pattern)
+			d.logger.Debug("REGEX pattern matched", "pattern", pattern)
 		}
 		return true, desc
 	}
 	
 	if d.options.Debug {
-		log.Printf("  ✗ REGEX: pattern '%s' no match", pattern)
+		d.logger.Debug("REGEX: pattern no match", "pattern", pattern)
 	}
 	
 	return false, ""
@@ -1260,7 +1260,7 @@ func (d *Detector) matchSearch(data []byte, entry *magic.MagicEntry, fullData []
 	}
 	
 	if d.options.Debug {
-		log.Printf("  SEARCH: pattern='%s', offset=%d", pattern, entry.Offset)
+		d.logger.Debug("SEARCH operation", "pattern", pattern, "offset", entry.Offset)
 	}
 	
 	// Determine search range
@@ -1272,7 +1272,7 @@ func (d *Detector) matchSearch(data []byte, entry *magic.MagicEntry, fullData []
 	if entry.NumMask > 0 && entry.NumMask < uint64(len(fullData)) {
 		searchRange = int(entry.NumMask)
 		if d.options.Debug {
-			log.Printf("  SEARCH: using range mask %d", searchRange)
+			d.logger.Debug("SEARCH: using range mask", "mask", searchRange)
 		}
 	} else {
 		searchRange = len(fullData)
@@ -1286,7 +1286,7 @@ func (d *Detector) matchSearch(data []byte, entry *magic.MagicEntry, fullData []
 		}
 		searchData = fullData[startOffset:endOffset]
 		if d.options.Debug {
-			log.Printf("  SEARCH: window [%d:%d], size=%d", startOffset, endOffset, len(searchData))
+			d.logger.Debug("SEARCH: window defined", "start", startOffset, "end", endOffset, "size", len(searchData))
 		}
 	}
 	
@@ -1314,20 +1314,20 @@ func (d *Detector) matchSearch(data []byte, entry *magic.MagicEntry, fullData []
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping SEARCH entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "SEARCH", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
 		
 		if len(desc) == 0 {
 			if d.options.Debug {
-				log.Printf("  SEARCH match has no description, skipping")
+				d.logger.Debug("SEARCH match has no description, skipping")
 			}
 			return false, ""
 		}
 		
 		if d.options.Debug {
-			log.Printf("  ✓ SEARCH: found pattern '%s'", pattern)
+			d.logger.Debug("SEARCH: pattern found", "pattern", pattern)
 		}
 		return true, desc
 	}
@@ -1342,7 +1342,7 @@ func (d *Detector) matchName(data []byte, entry *magic.MagicEntry) (bool, string
 	
 	pattern := entry.GetValueAsString()
 	if d.options.Debug {
-		log.Printf("  NAME: pattern='%s' (filename context not available)", pattern)
+		d.logger.Debug("NAME: pattern check without filename context", "pattern", pattern)
 	}
 	
 	desc := entry.GetDescription()
@@ -1352,14 +1352,14 @@ func (d *Detector) matchName(data []byte, entry *magic.MagicEntry) (bool, string
 		// For FILE_NAME entries with valid descriptions, we can still return them
 		// This is useful for entries that provide format info regardless of filename
 		if d.options.Debug {
-			log.Printf("  ✓ NAME: using description (no filename match needed): %s", desc)
+			d.logger.Debug("✓ NAME: using description (no filename match needed)", "value", desc)
 		}
 		return true, desc
 	}
 	
 	// Skip FILE_NAME entries without filename context or valid descriptions
 	if d.options.Debug {
-		log.Printf("  NAME: skipping (requires filename context)")
+		d.logger.Debug("NAME: skipping (requires filename context)")
 	}
 	return false, ""
 }
@@ -1383,7 +1383,7 @@ func (d *Detector) matchBELDate(data []byte, entry *magic.MagicEntry, fullData [
 	expected := uint32(readUint32(entry.Value[:4], false))
 
 	if d.options.Debug {
-		log.Printf("  BELDATE: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("BELDATE comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -1399,7 +1399,7 @@ func (d *Detector) matchBELDate(data []byte, entry *magic.MagicEntry, fullData [
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping BELDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "BELDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1425,7 +1425,7 @@ func (d *Detector) matchLEQDate(data []byte, entry *magic.MagicEntry, fullData [
 	expected := readUint64(entry.Value[:8], true)
 
 	if d.options.Debug {
-		log.Printf("  LEQDATE: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("LEQDATE comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -1441,7 +1441,7 @@ func (d *Detector) matchLEQDate(data []byte, entry *magic.MagicEntry, fullData [
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping LEQDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "LEQDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1467,7 +1467,7 @@ func (d *Detector) matchBEQDate(data []byte, entry *magic.MagicEntry, fullData [
 	expected := readUint64(entry.Value[:8], false)
 
 	if d.options.Debug {
-		log.Printf("  BEQDATE: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("BEQDATE comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -1483,7 +1483,7 @@ func (d *Detector) matchBEQDate(data []byte, entry *magic.MagicEntry, fullData [
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping BEQDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "BEQDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1509,7 +1509,7 @@ func (d *Detector) matchBEString16(data []byte, entry *magic.MagicEntry) (bool, 
 	}
 	
 	if d.options.Debug {
-		log.Printf("  BESTRING16: pattern='%s', data_len=%d", pattern, len(data))
+		d.logger.Debug("BESTRING16 pattern check", "pattern", pattern, "data_length", len(data))
 	}
 
 	// Convert UTF-16 big-endian data to string for comparison
@@ -1547,26 +1547,26 @@ func (d *Detector) matchBEString16(data []byte, entry *magic.MagicEntry) (bool, 
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping BESTRING16 entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping BESTRING16 entry with corrupted description", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
 		
 		if len(desc) == 0 {
 			if d.options.Debug {
-				log.Printf("  BESTRING16 match has no description, skipping")
+				d.logger.Debug("BESTRING16 match has no description, skipping")
 			}
 			return false, ""
 		}
 		
 		if d.options.Debug {
-			log.Printf("  ✓ BESTRING16: pattern '%s' matched in '%s'", pattern, textStr)
+			d.logger.Debug("  ✓ BESTRING16 pattern check", "pattern", pattern, "text", textStr)
 		}
 		return true, desc
 	}
 	
 	if d.options.Debug {
-		log.Printf("  ✗ BESTRING16: pattern '%s' no match in '%s'", pattern, textStr)
+		d.logger.Debug("BESTRING16: pattern no match", "pattern", pattern, "text", textStr)
 	}
 	
 	return false, ""
@@ -1575,7 +1575,7 @@ func (d *Detector) matchBEString16(data []byte, entry *magic.MagicEntry) (bool, 
 // matchClear clears flags or state in magic processing
 func (d *Detector) matchClear(data []byte, entry *magic.MagicEntry, fullData []byte) (bool, string) {
 	if d.options.Debug {
-		log.Printf("  CLEAR: clearing state flags")
+		d.logger.Debug("CLEAR: clearing state flags")
 	}
 	
 	// FILE_CLEAR is used to clear flags or reset state in complex magic sequences
@@ -1599,7 +1599,7 @@ func (d *Detector) matchDate(data []byte, entry *magic.MagicEntry, fullData []by
 	expected := uint32(entry.GetValueAsUint64())
 
 	if d.options.Debug {
-		log.Printf("  DATE: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("DATE comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -1615,7 +1615,7 @@ func (d *Detector) matchDate(data []byte, entry *magic.MagicEntry, fullData []by
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping DATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "DATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1641,7 +1641,7 @@ func (d *Detector) matchLDate(data []byte, entry *magic.MagicEntry, fullData []b
 	expected := uint32(entry.GetValueAsUint64())
 
 	if d.options.Debug {
-		log.Printf("  LDATE: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("LDATE comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -1657,7 +1657,7 @@ func (d *Detector) matchLDate(data []byte, entry *magic.MagicEntry, fullData []b
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping LDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "LDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1683,7 +1683,7 @@ func (d *Detector) matchLELDate(data []byte, entry *magic.MagicEntry, fullData [
 	expected := uint32(readUint32(entry.Value[:4], true))
 
 	if d.options.Debug {
-		log.Printf("  LELDATE: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("LELDATE comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -1699,7 +1699,7 @@ func (d *Detector) matchLELDate(data []byte, entry *magic.MagicEntry, fullData [
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping LELDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "LELDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1725,7 +1725,7 @@ func (d *Detector) matchQDate(data []byte, entry *magic.MagicEntry, fullData []b
 	expected := entry.GetValueAsUint64()
 
 	if d.options.Debug {
-		log.Printf("  QDATE: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("QDATE comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -1741,7 +1741,7 @@ func (d *Detector) matchQDate(data []byte, entry *magic.MagicEntry, fullData []b
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping QDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "QDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1767,7 +1767,7 @@ func (d *Detector) matchQLDate(data []byte, entry *magic.MagicEntry, fullData []
 	expected := entry.GetValueAsUint64()
 
 	if d.options.Debug {
-		log.Printf("  QLDATE: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("QLDATE comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -1783,7 +1783,7 @@ func (d *Detector) matchQLDate(data []byte, entry *magic.MagicEntry, fullData []
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping QLDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "QLDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1809,7 +1809,7 @@ func (d *Detector) matchLEQLDate(data []byte, entry *magic.MagicEntry, fullData 
 	expected := readUint64(entry.Value[:8], true)
 
 	if d.options.Debug {
-		log.Printf("  LEQLDATE: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("LEQLDATE comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -1825,7 +1825,7 @@ func (d *Detector) matchLEQLDate(data []byte, entry *magic.MagicEntry, fullData 
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping LEQLDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "LEQLDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1851,7 +1851,7 @@ func (d *Detector) matchBEQLDate(data []byte, entry *magic.MagicEntry, fullData 
 	expected := readUint64(entry.Value[:8], false)
 
 	if d.options.Debug {
-		log.Printf("  BEQLDATE: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("BEQLDATE comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -1867,7 +1867,7 @@ func (d *Detector) matchBEQLDate(data []byte, entry *magic.MagicEntry, fullData 
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping BEQLDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "BEQLDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1897,7 +1897,7 @@ func (d *Detector) matchMSDOSDate(data []byte, entry *magic.MagicEntry, fullData
 		year := 1980 + ((actual >> 9) & 0x7F)
 		month := (actual >> 5) & 0x0F
 		day := actual & 0x1F
-		log.Printf("  MSDOSDATE: actual=0x%04x (%04d-%02d-%02d), expected=0x%04x", actual, year, month, day, expected)
+		d.logger.Debug("MSDOSDATE comparison", "actual", fmt.Sprintf("0x%04x", actual), "date", fmt.Sprintf("%04d-%02d-%02d", year, month, day), "expected", fmt.Sprintf("0x%04x", expected))
 	}
 
 	// Apply mask if specified
@@ -1913,7 +1913,7 @@ func (d *Detector) matchMSDOSDate(data []byte, entry *magic.MagicEntry, fullData
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping MSDOSDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "MSDOSDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1939,7 +1939,7 @@ func (d *Detector) matchLEMSDOSDate(data []byte, entry *magic.MagicEntry, fullDa
 	expected := uint16(readUint16(entry.Value[:2], true))
 
 	if d.options.Debug {
-		log.Printf("  LEMSDOSDATE: actual=0x%04x, expected=0x%04x", actual, expected)
+		d.logger.Debug("LEMSDOSDATE comparison", "actual", fmt.Sprintf("0x%04x", actual), "expected", fmt.Sprintf("0x%04x", expected))
 	}
 
 	// Apply mask if specified
@@ -1955,7 +1955,7 @@ func (d *Detector) matchLEMSDOSDate(data []byte, entry *magic.MagicEntry, fullDa
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping LEMSDOSDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "LEMSDOSDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -1981,7 +1981,7 @@ func (d *Detector) matchBEMSDOSDate(data []byte, entry *magic.MagicEntry, fullDa
 	expected := uint16(readUint16(entry.Value[:2], false))
 
 	if d.options.Debug {
-		log.Printf("  BEMSDOSDATE: actual=0x%04x, expected=0x%04x", actual, expected)
+		d.logger.Debug("BEMSDOSDATE comparison", "actual", fmt.Sprintf("0x%04x", actual), "expected", fmt.Sprintf("0x%04x", expected))
 	}
 
 	// Apply mask if specified
@@ -1997,7 +1997,7 @@ func (d *Detector) matchBEMSDOSDate(data []byte, entry *magic.MagicEntry, fullDa
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping BEMSDOSDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "BEMSDOSDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -2027,7 +2027,7 @@ func (d *Detector) matchMSDOSTime(data []byte, entry *magic.MagicEntry, fullData
 		hour := (actual >> 11) & 0x1F
 		minute := (actual >> 5) & 0x3F
 		second := (actual & 0x1F) * 2
-		log.Printf("  MSDOSTIME: actual=0x%04x (%02d:%02d:%02d), expected=0x%04x", actual, hour, minute, second, expected)
+		d.logger.Debug("MSDOSTIME comparison", "actual", fmt.Sprintf("0x%04x", actual), "time", fmt.Sprintf("%02d:%02d:%02d", hour, minute, second), "expected", fmt.Sprintf("0x%04x", expected))
 	}
 
 	// Apply mask if specified
@@ -2043,7 +2043,7 @@ func (d *Detector) matchMSDOSTime(data []byte, entry *magic.MagicEntry, fullData
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping MSDOSTIME entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "MSDOSTIME", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -2069,7 +2069,7 @@ func (d *Detector) matchLEMSDOSTime(data []byte, entry *magic.MagicEntry, fullDa
 	expected := uint16(readUint16(entry.Value[:2], true))
 
 	if d.options.Debug {
-		log.Printf("  LEMSDOSTIME: actual=0x%04x, expected=0x%04x", actual, expected)
+		d.logger.Debug("LEMSDOSTIME comparison", "actual", fmt.Sprintf("0x%04x", actual), "expected", fmt.Sprintf("0x%04x", expected))
 	}
 
 	// Apply mask if specified
@@ -2085,7 +2085,7 @@ func (d *Detector) matchLEMSDOSTime(data []byte, entry *magic.MagicEntry, fullDa
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping LEMSDOSTIME entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "LEMSDOSTIME", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -2111,7 +2111,7 @@ func (d *Detector) matchBEMSDOSTime(data []byte, entry *magic.MagicEntry, fullDa
 	expected := uint16(readUint16(entry.Value[:2], false))
 
 	if d.options.Debug {
-		log.Printf("  BEMSDOSTIME: actual=0x%04x, expected=0x%04x", actual, expected)
+		d.logger.Debug("BEMSDOSTIME comparison", "actual", fmt.Sprintf("0x%04x", actual), "expected", fmt.Sprintf("0x%04x", expected))
 	}
 
 	// Apply mask if specified
@@ -2127,7 +2127,7 @@ func (d *Detector) matchBEMSDOSTime(data []byte, entry *magic.MagicEntry, fullDa
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping BEMSDOSTIME entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "BEMSDOSTIME", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -2153,7 +2153,7 @@ func (d *Detector) matchOctal(data []byte, entry *magic.MagicEntry, fullData []b
 	expected := uint32(entry.GetValueAsUint64())
 
 	if d.options.Debug {
-		log.Printf("  OCTAL: actual=0%o, expected=0%o", actual, expected)
+		d.logger.Debug("OCTAL comparison", "actual", fmt.Sprintf("0%o", actual), "expected", fmt.Sprintf("0%o", expected))
 	}
 
 	// Apply mask if specified
@@ -2169,7 +2169,7 @@ func (d *Detector) matchOctal(data []byte, entry *magic.MagicEntry, fullData []b
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping OCTAL entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "OCTAL", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -2195,7 +2195,7 @@ func (d *Detector) matchMEDate(data []byte, entry *magic.MagicEntry, fullData []
 	expected := uint32(entry.GetValueAsUint64())
 
 	if d.options.Debug {
-		log.Printf("  MEDATE: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("MEDATE comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -2211,7 +2211,7 @@ func (d *Detector) matchMEDate(data []byte, entry *magic.MagicEntry, fullData []
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping MEDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "MEDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -2237,7 +2237,7 @@ func (d *Detector) matchMELDate(data []byte, entry *magic.MagicEntry, fullData [
 	expected := uint32(entry.GetValueAsUint64())
 
 	if d.options.Debug {
-		log.Printf("  MELDATE: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("MELDATE comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -2253,7 +2253,7 @@ func (d *Detector) matchMELDate(data []byte, entry *magic.MagicEntry, fullData [
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping MELDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "MELDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -2279,7 +2279,7 @@ func (d *Detector) matchMELong(data []byte, entry *magic.MagicEntry, fullData []
 	expected := uint32(entry.GetValueAsUint64())
 
 	if d.options.Debug {
-		log.Printf("  MELONG: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("MELONG comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -2295,7 +2295,7 @@ func (d *Detector) matchMELong(data []byte, entry *magic.MagicEntry, fullData []
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping MELONG entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "MELONG", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -2321,7 +2321,7 @@ func (d *Detector) matchQWDate(data []byte, entry *magic.MagicEntry, fullData []
 	expected := entry.GetValueAsUint64()
 
 	if d.options.Debug {
-		log.Printf("  QWDATE: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("QWDATE comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -2337,7 +2337,7 @@ func (d *Detector) matchQWDate(data []byte, entry *magic.MagicEntry, fullData []
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping QWDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "QWDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -2363,7 +2363,7 @@ func (d *Detector) matchLEQWDate(data []byte, entry *magic.MagicEntry, fullData 
 	expected := readUint64(entry.Value[:8], true)
 
 	if d.options.Debug {
-		log.Printf("  LEQWDATE: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("LEQWDATE comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -2379,7 +2379,7 @@ func (d *Detector) matchLEQWDate(data []byte, entry *magic.MagicEntry, fullData 
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping LEQWDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "LEQWDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -2405,7 +2405,7 @@ func (d *Detector) matchBEQWDate(data []byte, entry *magic.MagicEntry, fullData 
 	expected := readUint64(entry.Value[:8], false)
 
 	if d.options.Debug {
-		log.Printf("  BEQWDATE: actual=%d, expected=%d", actual, expected)
+		d.logger.Debug("BEQWDATE comparison", "actual", actual, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -2421,7 +2421,7 @@ func (d *Detector) matchBEQWDate(data []byte, entry *magic.MagicEntry, fullData 
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping BEQWDATE entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "BEQWDATE", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -2449,7 +2449,7 @@ func (d *Detector) matchBEID3(data []byte, entry *magic.MagicEntry, fullData []b
 	if d.options.Debug {
 		// Convert to string for debugging
 		idStr := string([]byte{byte(actual >> 24), byte(actual >> 16), byte(actual >> 8), byte(actual)})
-		log.Printf("  BEID3: actual=0x%08x (%s), expected=0x%08x", actual, idStr, expected)
+		d.logger.Debug("BEID3 comparison", "actual", fmt.Sprintf("0x%08x", actual), "actual_string", idStr, "expected", fmt.Sprintf("0x%08x", expected))
 	}
 
 	// Apply mask if specified
@@ -2465,7 +2465,7 @@ func (d *Detector) matchBEID3(data []byte, entry *magic.MagicEntry, fullData []b
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping BEID3 entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping BEID3 entry with corrupted description", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -2493,7 +2493,7 @@ func (d *Detector) matchLEID3(data []byte, entry *magic.MagicEntry, fullData []b
 	if d.options.Debug {
 		// Convert to string for debugging (reverse byte order for little-endian)
 		idStr := string([]byte{byte(actual), byte(actual >> 8), byte(actual >> 16), byte(actual >> 24)})
-		log.Printf("  LEID3: actual=0x%08x (%s), expected=0x%08x", actual, idStr, expected)
+		d.logger.Debug("LEID3 comparison", "actual", fmt.Sprintf("0x%08x", actual), "actual_string", idStr, "expected", fmt.Sprintf("0x%08x", expected))
 	}
 
 	// Apply mask if specified
@@ -2509,7 +2509,7 @@ func (d *Detector) matchLEID3(data []byte, entry *magic.MagicEntry, fullData []b
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping LEID3 entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping LEID3 entry with corrupted description", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -2556,7 +2556,7 @@ func (d *Detector) matchBEVarInt(data []byte, entry *magic.MagicEntry, fullData 
 	expected := entry.GetValueAsUint64()
 
 	if d.options.Debug {
-		log.Printf("  BEVARINT: actual=%d (%d bytes), expected=%d", actual, bytesRead, expected)
+		d.logger.Debug("BEVARINT comparison", "actual", actual, "bytes_read", bytesRead, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -2572,7 +2572,7 @@ func (d *Detector) matchBEVarInt(data []byte, entry *magic.MagicEntry, fullData 
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping BEVARINT entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "BEVARINT", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}
@@ -2619,7 +2619,7 @@ func (d *Detector) matchLEVarInt(data []byte, entry *magic.MagicEntry, fullData 
 	expected := entry.GetValueAsUint64()
 
 	if d.options.Debug {
-		log.Printf("  LEVARINT: actual=%d (%d bytes), expected=%d", actual, bytesRead, expected)
+		d.logger.Debug("LEVARINT comparison", "actual", actual, "bytes_read", bytesRead, "expected", expected)
 	}
 
 	// Apply mask if specified
@@ -2635,7 +2635,7 @@ func (d *Detector) matchLEVarInt(data []byte, entry *magic.MagicEntry, fullData 
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				log.Printf("  Skipping LEVARINT entry with corrupted description: %x", []byte(desc))
+				d.logger.Debug("Skipping entry with corrupted description", "entry_type", "LEVARINT", "description_hex", fmt.Sprintf("%x", []byte(desc)))
 			}
 			return false, ""
 		}

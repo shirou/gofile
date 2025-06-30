@@ -1,8 +1,6 @@
 package detector
 
 import (
-	"log"
-
 	"github.com/shirou/gofile/internal/magic"
 )
 
@@ -93,7 +91,7 @@ func (apm *AdvancedPatternMatcher) FastHeaderDetection(data []byte) (bool, strin
 	for sig, desc := range signatures {
 		if len(data) >= len(sig) && string(data[:len(sig)]) == sig {
 			if apm.detector.options.Debug {
-				log.Printf("✓ FAST HEADER: detected %s", desc)
+				apm.detector.logger.Debug("✓ FAST HEADER: detected", "description", desc)
 			}
 			return true, desc
 		}
