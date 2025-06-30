@@ -13,6 +13,7 @@ var (
 	brief        = flag.Bool("b", false, "Brief mode - don't prepend filenames to output lines")
 	mimeType     = flag.Bool("i", false, "Output MIME type strings")
 	magicFile    = flag.String("m", "", "Use specified magic file")
+	debug        = flag.Bool("d", false, "Enable debug mode - show detailed detection process")
 	version      = flag.Bool("version", false, "Show version information")
 	help         = flag.Bool("h", false, "Show help")
 )
@@ -64,7 +65,7 @@ func main() {
 	opts := detector.DefaultOptions()
 	opts.MIME = *mimeType
 	opts.Brief = *brief
-	opts.Debug = false // Disable debug mode for normal usage
+	opts.Debug = *debug
 
 	// Create detector
 	det := detector.New(flatDB, opts)
@@ -115,6 +116,7 @@ func showHelp() {
 	fmt.Println("  -b                    Brief mode - don't prepend filenames")
 	fmt.Println("  -i                    Output MIME type strings")
 	fmt.Println("  -m FILE               Use specified magic file")
+	fmt.Println("  -d                    Enable debug mode - show detailed detection process")
 	fmt.Println("  --version             Show version information")
 	fmt.Println("  -h                    Show this help")
 	fmt.Println()

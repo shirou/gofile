@@ -196,12 +196,21 @@ func (d *Detector) matchString(data []byte, entry *magic.MagicEntry) (bool, stri
 		
 		desc := entry.GetDescription()
 		
-		// Check if description contains only printable characters
+		// For STRING entries, if description looks like binary data, use MimeType instead
 		if len(desc) > 0 && !d.isValidDescription(desc) {
-			if d.options.Debug {
-				log.Printf("  Skipping STRING entry with corrupted description: %x", []byte(desc))
+			// Try MimeType field as description
+			mimeDesc := entry.GetMimeType()
+			if len(mimeDesc) > 0 && d.isValidDescription(mimeDesc) {
+				desc = mimeDesc
+				if d.options.Debug {
+					log.Printf("  Using MimeType as description: %s", desc)
+				}
+			} else {
+				if d.options.Debug {
+					log.Printf("  Skipping STRING entry with corrupted description: %x", []byte(desc))
+				}
+				return false, ""
 			}
-			return false, ""
 		}
 		
 		// If description is empty, skip this match unless it's a very specific pattern

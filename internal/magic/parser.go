@@ -194,11 +194,11 @@ func (p *Parser) parseEntry(data []byte) (*MagicEntry, error) {
 	}
 	offset += 64
 
-	// Apple at offset 160 (8 bytes)
-	copy(entry.Apple[:], data[offset:offset+8])
-	offset += 8
+	// Apple at offset 160 (6 bytes)  
+	copy(entry.Apple[:6], data[offset:offset+6])
+	offset += 6
 
-	// MIME type at offset 168 (80 bytes) - estimated position
+	// MIME type at offset 166 (80 bytes) - CORRECTED POSITION!
 	copy(entry.MimeType[:], data[offset:offset+MAXMIME])
 	offset += MAXMIME
 

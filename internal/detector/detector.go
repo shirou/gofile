@@ -135,7 +135,41 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 	// Try to match against each magic entry with priority ordering
 	matchAttempts := 0
 
-	// First pass: High-priority binary signatures (specific patterns)
+	// First pass: Specific binary signatures at offset 0
+	for i, entry := range entries {
+		if entry.Offset != 0 {
+			continue
+		}
+		
+		// Process specific binary signatures (including binary strings)
+		if d.isSpecificBinarySignature(entry) {
+			if match, result := d.matchEntry(data, entry, data); match {
+				if d.options.Debug {
+					log.Printf("✓ SPECIFIC-BINARY MATCH at entry %d: %s", i, result)
+				}
+				
+				// Skip matches with empty results to continue searching
+				if len(strings.TrimSpace(result)) == 0 {
+					if d.options.Debug {
+						log.Printf("  Skipping empty result, continuing search...")
+					}
+					continue
+				}
+
+				// Additional validation before accepting result
+				if !d.isValidDescription(result) {
+					if d.options.Debug {
+						log.Printf("  Skipping invalid description: %x", []byte(result))
+					}
+					continue
+				}
+
+				return d.formatResult(result), nil
+			}
+		}
+	}
+
+	// Second pass: High-priority binary signatures (other patterns)
 	for i, entry := range entries {
 		if !d.isHighPriorityType(entry.Type) {
 			continue
@@ -169,6 +203,7 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 
 			return d.formatResult(result), nil
 		}
+		
 		matchAttempts++
 
 		// Log first few attempts in debug mode
@@ -215,7 +250,54 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 		matchAttempts++
 	}
 
-	// Third pass: Low-priority generic patterns (USE, NAME, DEFAULT)
+	// Third pass: Medium-priority patterns (including string patterns not in first pass)
+	for i, entry := range entries {
+		// Skip patterns already processed in first pass
+		if entry.Offset == 0 && d.isSpecificBinarySignature(entry) {
+			continue
+		}
+		
+		if d.isHighPriorityType(entry.Type) || d.isLowPriorityType(entry.Type) {
+			continue
+		}
+		
+		// Process STRING types and other medium-priority patterns
+		if entry.Type == magic.FILE_STRING || entry.Type == magic.FILE_PSTRING ||
+		   entry.Type == magic.FILE_BESTRING16 || entry.Type == magic.FILE_LESTRING16 ||
+		   entry.Type == magic.FILE_REGEX || entry.Type == magic.FILE_SEARCH {
+			
+			// Skip entries with very high offsets for debugging
+			if d.options.Debug && entry.Offset > int32(len(data)) {
+				continue
+			}
+
+			if match, result := d.matchEntry(data, entry, data); match {
+				if d.options.Debug {
+					log.Printf("✓ MEDIUM-PRIORITY MATCH at entry %d: %s", i, result)
+				}
+
+				// Skip matches with empty results to continue searching
+				if len(strings.TrimSpace(result)) == 0 {
+					if d.options.Debug {
+						log.Printf("  Skipping empty result, continuing search...")
+					}
+					continue
+				}
+
+				// Additional validation before accepting result
+				if !d.isValidDescription(result) {
+					if d.options.Debug {
+						log.Printf("  Skipping invalid description: %x", []byte(result))
+					}
+					continue
+				}
+
+				return d.formatResult(result), nil
+			}
+		}
+	}
+
+	// Fourth pass: Low-priority generic patterns (USE, NAME, DEFAULT)
 	for i, entry := range entries {
 		if !d.isLowPriorityType(entry.Type) {
 			continue
@@ -260,6 +342,97 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 	return d.performFallbackDetection(data)
 }
 
+// isSpecificBinarySignature returns true for entries that represent specific binary file signatures
+func (d *Detector) isSpecificBinarySignature(entry *magic.MagicEntry) bool {
+	// Must be at offset 0 to be a file signature
+	if entry.Offset != 0 {
+		return false
+	}
+	
+	// Must have a meaningful description to be a specific signature
+	desc := entry.GetDescription()
+	if len(strings.TrimSpace(desc)) == 0 {
+		return false
+	}
+	
+	// Reject single-character descriptions that are likely generic or meaningless
+	if len(desc) == 1 {
+		return false
+	}
+	
+	// Reject very short descriptions unless they're known good file types
+	if len(desc) <= 3 {
+		// Allow known file extensions/types
+		lowerDesc := strings.ToLower(desc)
+		knownShort := lowerDesc == "png" || lowerDesc == "pdf" || lowerDesc == "gif" || 
+		             lowerDesc == "zip" || lowerDesc == "exe" || lowerDesc == "xml" ||
+		             lowerDesc == "txt" || lowerDesc == "htm" || lowerDesc == "jpg"
+		if !knownShort {
+			return false
+		}
+	}
+	
+	// Binary types at offset 0 with meaningful descriptions are usually specific signatures
+	switch entry.Type {
+	case magic.FILE_BYTE, magic.FILE_SHORT, magic.FILE_LONG:
+		// Only if the expected value is not zero (to avoid generic "anything != 0" matches)
+		if entry.GetValueAsUint64() != 0 {
+			return true
+		}
+		return false
+	case magic.FILE_BESHORT, magic.FILE_BELONG, magic.FILE_LESHORT, magic.FILE_LELONG:
+		// Only if the expected value is not zero (to avoid generic "anything != 0" matches)
+		if entry.GetValueAsUint64() != 0 {
+			return true
+		}
+		return false
+	case magic.FILE_BEQUAD, magic.FILE_LEQUAD, magic.FILE_QUAD:
+		// Only if the expected value is not zero (to avoid generic "anything != 0" matches)
+		if entry.GetValueAsUint64() != 0 {
+			return true
+		}
+		return false
+	case magic.FILE_STRING:
+		// String types at offset 0 with binary patterns (like 7z signature)
+		if entry.Offset == 0 {
+			// Check if this looks like a binary signature
+			valueStr := entry.GetValueAsString()
+			if len(valueStr) >= 3 {
+				// Look for known binary patterns or non-printable characters
+				hasBinary := false
+				for i := 0; i < len(valueStr) && i < 8; i++ {
+					b := valueStr[i]
+					if b < 32 || b > 126 {
+						hasBinary = true
+						break
+					}
+				}
+				if hasBinary {
+					return true
+				}
+				
+				// Check for known archive/binary signatures
+				desc := entry.GetDescription()
+				if len(desc) > 0 {
+					lowerDesc := strings.ToLower(desc)
+					if strings.Contains(lowerDesc, "archive") ||
+					   strings.Contains(lowerDesc, "zip") ||
+					   strings.Contains(lowerDesc, "7z") ||
+					   strings.Contains(lowerDesc, "7-zip") ||
+					   strings.Contains(lowerDesc, "compressed") ||
+					   strings.Contains(lowerDesc, "executable") ||
+					   strings.Contains(lowerDesc, "image") {
+						return true
+					}
+				}
+			}
+		}
+		return false
+	default:
+		return false
+	}
+}
+
 // isHighPriorityType returns true for types that should be checked first (specific binary signatures)
 func (d *Detector) isHighPriorityType(magicType uint8) bool {
 	switch magicType {
@@ -268,9 +441,6 @@ func (d *Detector) isHighPriorityType(magicType uint8) bool {
 	case magic.FILE_BESHORT, magic.FILE_BELONG, magic.FILE_LESHORT, magic.FILE_LELONG:
 		return true
 	case magic.FILE_BEQUAD, magic.FILE_LEQUAD, magic.FILE_QUAD:
-		return true
-	case magic.FILE_STRING:
-		// Strings at offset 0 are usually signatures
 		return true
 	case magic.FILE_FLOAT, magic.FILE_DOUBLE:
 		return true

@@ -134,8 +134,8 @@ type MagicEntry struct {
 	// Text fields - CORRECTED POSITIONS based on analysis
 	Desc     [MAXDESC]byte  // Offset 32: Description (64 bytes) - CORRECTED!
 	Value    [64]byte       // Offset 96: Value field (64 bytes)
-	Apple    [8]byte        // Offset 160: Apple/format info  
-	MimeType [MAXMIME]byte  // Offset 168: MIME type (80 bytes) - estimated
+	Apple    [8]byte        // Offset 160: Apple/format info (only first 6 bytes used) 
+	MimeType [MAXMIME]byte  // Offset 166: MIME type (80 bytes) - CORRECTED!
 	Ext      [MAXEXT]byte   // Offset 248: Extensions (120 bytes)
 	
 	// Padding to reach entry size (368 + 8 = 376 bytes for version 18)
