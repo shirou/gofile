@@ -34,6 +34,16 @@ func (d *Detector) getDefaultDescription(data []byte, entry *magic.MagicEntry) s
 		return d.parseZIPDetails(data)
 	}
 
+	// Check for RIFF signature (WAV, AVI, etc.)
+	if len(data) >= 12 && data[0] == 'R' && data[1] == 'I' && data[2] == 'F' && data[3] == 'F' {
+		return d.parseRIFFDetails(data)
+	}
+
+	// Check for EBML signature (Matroska, WebM, etc.)
+	if len(data) >= 4 && data[0] == 0x1a && data[1] == 0x45 && data[2] == 0xdf && data[3] == 0xa3 {
+		return d.parseEBMLDetails(data)
+	}
+
 	// Check for text encoding first (including RFC 822 mail)
 	// Check if content is mostly printable ASCII or extended ASCII
 	ascii := 0
@@ -378,6 +388,162 @@ func (d *Detector) parsePDFDetails(data []byte) string {
 	return "PDF document"
 }
 
+// detectOfficeFormat analyzes ZIP file structure to detect Office 2007+ formats
+func (d *Detector) detectOfficeFormat(data []byte) string {
+	// Need at least basic ZIP header
+	if len(data) < 30 {
+		return ""
+	}
+
+	// Parse the ZIP file structure to look for [Content_Types].xml
+	// Office 2007+ formats always contain this file
+	
+	// Get filename length and extra field length from local file header
+	filenameLength := uint16(data[26]) | uint16(data[27])<<8
+	// extraFieldLength := uint16(data[28]) | uint16(data[29])<<8
+	
+	// Check if we have enough data for the filename
+	filenameOffset := 30
+	if len(data) < filenameOffset+int(filenameLength) {
+		return ""
+	}
+	
+	// Extract first filename
+	filename := string(data[filenameOffset : filenameOffset+int(filenameLength)])
+	
+	// Check if first file is [Content_Types].xml (common in Office files)
+	if filename == "[Content_Types].xml" {
+		// This is likely an Office format, now scan further to identify specific type
+		return d.identifyOfficeFormat(data)
+	}
+	
+	// If not the first file, scan through more entries to look for Office signatures
+	// This is a simplified check - real implementation would parse the entire directory
+	// offset := filenameOffset + int(filenameLength) + int(extraFieldLength)
+	
+	// Look for content type patterns in the data (simplified approach)
+	dataStr := string(data)
+	if strings.Contains(dataStr, "[Content_Types].xml") {
+		return d.identifyOfficeFormat(data)
+	}
+	
+	return ""
+}
+
+// identifyOfficeFormat determines specific Office format type
+func (d *Detector) identifyOfficeFormat(data []byte) string {
+	dataStr := string(data)
+	
+	// Look for specific Office content type patterns
+	if strings.Contains(dataStr, "word/") || strings.Contains(dataStr, "wordprocessingml") {
+		return "Microsoft Word 2007+"
+	} else if strings.Contains(dataStr, "xl/") || strings.Contains(dataStr, "spreadsheetml") {
+		return "Microsoft Excel 2007+"
+	} else if strings.Contains(dataStr, "ppt/") || strings.Contains(dataStr, "presentationml") {
+		return "Microsoft PowerPoint 2007+"
+	}
+	
+	// Generic Office format if we can't determine specific type
+	return "Microsoft Office 2007+"
+}
+
+// parseRIFFDetails extracts detailed information from RIFF file headers (WAV, AVI, etc.)
+func (d *Detector) parseRIFFDetails(data []byte) string {
+	if len(data) < 12 {
+		return "RIFF data"
+	}
+
+	// RIFF format: "RIFF" + 4 bytes size + 4 bytes format
+	format := string(data[8:12])
+	
+	switch format {
+	case "WAVE":
+		return d.parseWAVEDetails(data)
+	case "AVI ":
+		return "RIFF (little-endian) data, AVI video"
+	default:
+		return fmt.Sprintf("RIFF (little-endian) data, format %s", format)
+	}
+}
+
+// parseWAVEDetails extracts detailed information from WAVE audio files
+func (d *Detector) parseWAVEDetails(data []byte) string {
+	if len(data) < 36 {
+		return "RIFF (little-endian) data, WAVE audio"
+	}
+
+	// Look for fmt chunk (format information)
+	// Typically starts at offset 12: "fmt " + 4 bytes chunk size + format data
+	if data[12] != 'f' || data[13] != 'm' || data[14] != 't' || data[15] != ' ' {
+		return "RIFF (little-endian) data, WAVE audio"
+	}
+
+	// Get chunk size (should be at least 16 for PCM)
+	chunkSize := uint32(data[16]) | uint32(data[17])<<8 | uint32(data[18])<<16 | uint32(data[19])<<24
+	if chunkSize < 16 || len(data) < int(20+chunkSize) {
+		return "RIFF (little-endian) data, WAVE audio"
+	}
+
+	// Parse format data starting at offset 20
+	formatTag := uint16(data[20]) | uint16(data[21])<<8      // Audio format (1 = PCM)
+	channels := uint16(data[22]) | uint16(data[23])<<8       // Number of channels
+	sampleRate := uint32(data[24]) | uint32(data[25])<<8 | uint32(data[26])<<16 | uint32(data[27])<<24
+	bitsPerSample := uint16(data[34]) | uint16(data[35])<<8  // Bits per sample
+
+	// Build description
+	desc := "RIFF (little-endian) data, WAVE audio"
+
+	// Add format information
+	switch formatTag {
+	case 1:
+		desc += ", Microsoft PCM"
+	case 3:
+		desc += ", IEEE float"
+	case 6:
+		desc += ", A-law"
+	case 7:
+		desc += ", μ-law"
+	default:
+		desc += fmt.Sprintf(", format %d", formatTag)
+	}
+
+	// Add bit depth
+	desc += fmt.Sprintf(", %d bit", bitsPerSample)
+
+	// Add channel information
+	if channels == 1 {
+		desc += ", mono"
+	} else if channels == 2 {
+		desc += ", stereo"
+	} else {
+		desc += fmt.Sprintf(", %d channels", channels)
+	}
+
+	// Add sample rate
+	desc += fmt.Sprintf(" %d Hz", sampleRate)
+
+	return desc
+}
+
+// parseEBMLDetails extracts detailed information from EBML files (Matroska, WebM, etc.)
+func (d *Detector) parseEBMLDetails(data []byte) string {
+	if len(data) < 40 {
+		return "EBML data"
+	}
+
+	// Look for DocType information in the EBML header
+	// This is a simplified parser that looks for known patterns
+	dataStr := string(data[:min(512, len(data))])
+	
+	if strings.Contains(dataStr, "matroska") {
+		return "Matroska data"
+	} else if strings.Contains(dataStr, "webm") {
+		return "WebM data"
+	} else {
+		return "EBML data"
+	}
+}
+
 // parseZIPDetails extracts detailed information from ZIP file headers
 func (d *Detector) parseZIPDetails(data []byte) string {
 	if len(data) < 4 {
@@ -393,6 +559,11 @@ func (d *Detector) parseZIPDetails(data []byte) string {
 		// Local file header - parse details
 		if len(data) < 30 {
 			return "Zip archive data"
+		}
+
+		// Check for Office 2007+ formats first
+		if officeType := d.detectOfficeFormat(data); officeType != "" {
+			return officeType
 		}
 
 		// Extract version needed to extract (2 bytes at offset 4)

@@ -106,7 +106,7 @@ func descriptionToMIME(desc string) string {
 	// Certificate and security formats (must come first to avoid substring conflicts)
 	switch {
 	case contains(desc, "pem certificate"):
-		return "application/x-x509-ca-cert"
+		return "text/plain"
 	case contains(desc, "asn.1 der") || contains(desc, "certificate"):
 		return "application/x-x509-ca-cert"
 	case contains(desc, "pem"):
@@ -139,6 +139,14 @@ func descriptionToMIME(desc string) string {
 		return "application/pdf"
 	case contains(desc, "postscript"):
 		return "application/postscript"
+	case contains(desc, "microsoft word 2007"):
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	case contains(desc, "microsoft excel 2007"):
+		return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	case contains(desc, "microsoft powerpoint 2007"):
+		return "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	case contains(desc, "microsoft office 2007"):
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 	case contains(desc, "microsoft word") || contains(desc, "ms-word") || contains(desc, "word document"):
 		return "application/msword"
 	case contains(desc, "microsoft excel") || contains(desc, "excel"):
@@ -194,8 +202,8 @@ func descriptionToMIME(desc string) string {
 	// Audio formats
 	case contains(desc, "mp3"):
 		return "audio/mpeg"
-	case contains(desc, "wav"):
-		return "audio/wav"
+	case contains(desc, "wave audio") || contains(desc, "wav"):
+		return "audio/x-wav"
 	case contains(desc, "ogg"):
 		return "audio/ogg"
 	case contains(desc, "flac"):
@@ -208,7 +216,7 @@ func descriptionToMIME(desc string) string {
 		return "video/mp4"
 	case contains(desc, "avi"):
 		return "video/x-msvideo"
-	case contains(desc, "mkv"):
+	case contains(desc, "mkv") || contains(desc, "matroska"):
 		return "video/x-matroska"
 	case contains(desc, "webm"):
 		return "video/webm"
