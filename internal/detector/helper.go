@@ -177,19 +177,19 @@ func descriptionToMIME(desc string) string {
 	case contains(desc, "ascii text") || contains(desc, "utf-8 text") || contains(desc, "text"):
 		return "text/plain"
 
-	// Archive formats
-	case contains(desc, "zip"):
-		return "application/zip"
+	// Archive formats (check most specific patterns first)
+	case contains(desc, "7-zip"):
+		return "application/x-7z-compressed"
 	case contains(desc, "gzip") || contains(desc, "gz"):
 		return "application/gzip"
 	case contains(desc, "bzip2") || contains(desc, "bz2"):
 		return "application/x-bzip2"
 	case contains(desc, "tar"):
 		return "application/x-tar"
-	case contains(desc, "7-zip"):
-		return "application/x-7z-compressed"
 	case contains(desc, "rar"):
 		return "application/vnd.rar"
+	case contains(desc, "zip"):
+		return "application/zip"
 
 	// Audio formats
 	case contains(desc, "mp3"):

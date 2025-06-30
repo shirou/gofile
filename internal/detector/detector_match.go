@@ -218,8 +218,37 @@ func (d *Detector) matchString(data []byte, entry *magic.MagicEntry) (bool, stri
 		
 		// If description is empty, skip this match unless it's a very specific pattern
 		if len(desc) == 0 {
-			// Only accept very specific patterns that might be meaningful
-			if len(pattern) >= 3 && !strings.Contains(pattern, "\x00") {
+			// Check if this is a known binary signature that should be accepted
+			// even with empty description (like 7z signature)
+			isKnownBinarySignature := false
+			
+			// Check for 7z signature: 37 7a bc af 27 1c
+			if len(pattern) >= 6 {
+				if pattern[0] == 0x37 && pattern[1] == 0x7a && pattern[2] == 0xbc && 
+				   pattern[3] == 0xaf && pattern[4] == 0x27 && pattern[5] == 0x1c {
+					isKnownBinarySignature = true
+					// Return a meaningful description for 7z with version info
+					if len(data) >= 8 {
+						// 7z version is typically at byte 7 (0-indexed)
+						version := data[7]
+						return true, fmt.Sprintf("7-zip archive data, version 0.%d", version)
+					}
+					return true, "7-zip archive data"
+				}
+			}
+			
+			// Add other known binary signatures as needed
+			// ZIP signature: 50 4b 03 04 or 50 4b 05 06 or 50 4b 07 08
+			if len(pattern) >= 4 {
+				if pattern[0] == 0x50 && pattern[1] == 0x4b && 
+				   (pattern[2] == 0x03 || pattern[2] == 0x05 || pattern[2] == 0x07) {
+					isKnownBinarySignature = true
+					return true, "ZIP archive data"
+				}
+			}
+			
+			// For other patterns with empty descriptions, skip
+			if !isKnownBinarySignature && len(pattern) >= 3 && !strings.Contains(pattern, "\x00") {
 				if d.options.Debug {
 					d.logger.Debug("String match has no description, skipping")
 				}
