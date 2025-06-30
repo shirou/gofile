@@ -251,99 +251,412 @@ func (d *Detector) matchOffset(data []byte, entry *magic.MagicEntry, fullData []
 
 // matchIndirect handles complex indirect addressing (Type 41)
 func (d *Detector) matchIndirect(data []byte, entry *magic.MagicEntry) (bool, string) {
-	if d.options.Debug {
-		d.logger.Debug("INDIRECT operation", "offset", entry.Offset, "in_offset", entry.InOffset, "flags", fmt.Sprintf("0x%x", entry.Flag))
-	}
-	
-	// Basic indirect addressing implementation
-	// Full implementation requires complex flag interpretation
-	
-	// Check if we have enough data for the base offset
-	if entry.Offset < 0 || int(entry.Offset) >= len(data) {
+	return d.matchIndirectWithDepth(data, entry, data, 0)
+}
+
+// matchIndirectWithFullData handles indirect addressing with full data context
+func (d *Detector) matchIndirectWithFullData(data []byte, entry *magic.MagicEntry, fullData []byte) (bool, string) {
+	return d.matchIndirectWithDepth(data, entry, fullData, 0)
+}
+
+// matchIndirectWithDepth handles FILE_INDIRECT with recursion depth tracking
+func (d *Detector) matchIndirectWithDepth(data []byte, entry *magic.MagicEntry, fullData []byte, depth int) (bool, string) {
+	// Prevent infinite recursion
+	const maxIndirectDepth = 10
+	if depth > maxIndirectDepth {
 		if d.options.Debug {
-			d.logger.Debug("INDIRECT: base offset out of range", "offset", entry.Offset)
+			d.logger.Debug("INDIRECT: maximum recursion depth exceeded", "depth", depth)
 		}
 		return false, ""
 	}
+
+	if d.options.Debug {
+		d.logger.Debug("INDIRECT operation", 
+			"offset", entry.Offset, 
+			"in_offset", entry.InOffset, 
+			"in_type", entry.InType,
+			"flags", fmt.Sprintf("0x%x", entry.Flag),
+			"depth", depth)
+	}
 	
+	// Calculate the base offset considering relative positioning
+	baseOffset := d.calculateBaseOffset(entry, len(data))
+	if baseOffset < 0 || baseOffset >= len(data) {
+		if d.options.Debug {
+			d.logger.Debug("INDIRECT: base offset out of range", "offset", baseOffset)
+		}
+		return false, ""
+	}
+
+	// Read the pointer value based on the indirect type
+	pointerValue, bytesRead, err := d.readIndirectPointer(data[baseOffset:], entry)
+	if err != nil {
+		if d.options.Debug {
+			d.logger.Debug("INDIRECT: failed to read pointer", "error", err)
+		}
+		return false, ""
+	}
+
+	// Calculate the final target offset
+	targetOffset := d.calculateTargetOffset(pointerValue, entry, baseOffset, len(data))
+	if targetOffset < 0 || targetOffset >= len(data) {
+		if d.options.Debug {
+			d.logger.Debug("INDIRECT: target offset out of range", 
+				"target_offset", targetOffset,
+				"pointer_value", pointerValue,
+				"in_offset", entry.InOffset)
+		}
+		return false, ""
+	}
+
+	if d.options.Debug {
+		d.logger.Debug("INDIRECT: computed addresses",
+			"base_offset", baseOffset,
+			"pointer_value", fmt.Sprintf("0x%x", pointerValue),
+			"target_offset", targetOffset,
+			"bytes_read", bytesRead)
+	}
+
+	// Now we need to evaluate the pattern at the target offset
+	// Create a new entry representing the evaluation at the indirect location
+	indirectEntry := d.createIndirectEvaluationEntry(entry, targetOffset)
+	
+	// Recursively evaluate the pattern at the target location
+	return d.matchIndirectPattern(fullData, indirectEntry, targetOffset, depth+1)
+}
+
+// calculateBaseOffset calculates the base offset considering relative positioning flags
+func (d *Detector) calculateBaseOffset(entry *magic.MagicEntry, dataLen int) int {
 	baseOffset := int(entry.Offset)
 	
-	// Read indirect offset based on type (simplified)
-	var indirectOffset int
-	if baseOffset+4 <= len(data) {
-		// Read 32-bit offset (assuming little-endian for now)
-		indirectOffset = int(data[baseOffset]) | 
-			int(data[baseOffset+1])<<8 | 
-			int(data[baseOffset+2])<<16 | 
-			int(data[baseOffset+3])<<24
+	// Handle relative positioning flags
+	if entry.Flag&magic.OFFNEGATIVE != 0 {
+		// Relative to end of file
+		baseOffset = dataLen + baseOffset
+	} else if entry.Flag&magic.OFFPOSITIVE != 0 {
+		// Relative to beginning of file (explicit)
+		// baseOffset is already correct
+	}
+	
+	return baseOffset
+}
+
+// readIndirectPointer reads the pointer value from data based on indirect type
+func (d *Detector) readIndirectPointer(data []byte, entry *magic.MagicEntry) (int64, int, error) {
+	var pointerValue int64
+	var bytesRead int
+	
+	// Determine endianness - default to little endian unless specified otherwise
+	isLittleEndian := true // Default to little endian
+	if entry.Flag&magic.LITTLE_ENDIAN != 0 {
+		isLittleEndian = true
+	}
+	
+	// Read pointer based on InType (or fall back to assuming 32-bit)
+	switch entry.InType {
+	case magic.FILE_BYTE:
+		if len(data) < 1 {
+			return 0, 0, fmt.Errorf("insufficient data for byte pointer")
+		}
+		pointerValue = int64(data[0])
+		bytesRead = 1
 		
-		// Add the InOffset value
-		indirectOffset += int(entry.InOffset)
+	case magic.FILE_SHORT, magic.FILE_BESHORT, magic.FILE_LESHORT:
+		if len(data) < 2 {
+			return 0, 0, fmt.Errorf("insufficient data for short pointer")
+		}
+		if isLittleEndian || entry.InType == magic.FILE_LESHORT {
+			pointerValue = int64(readUint16(data, true))
+		} else {
+			pointerValue = int64(readUint16(data, false))
+		}
+		bytesRead = 2
 		
-		if d.options.Debug {
-			d.logger.Debug("INDIRECT: computed offset", "offset", indirectOffset)
+	case magic.FILE_LONG, magic.FILE_BELONG, magic.FILE_LELONG:
+		if len(data) < 4 {
+			return 0, 0, fmt.Errorf("insufficient data for long pointer")
+		}
+		if isLittleEndian || entry.InType == magic.FILE_LELONG {
+			pointerValue = int64(readUint32(data, true))
+		} else {
+			pointerValue = int64(readUint32(data, false))
+		}
+		bytesRead = 4
+		
+	case magic.FILE_QUAD, magic.FILE_BEQUAD, magic.FILE_LEQUAD:
+		if len(data) < 8 {
+			return 0, 0, fmt.Errorf("insufficient data for quad pointer")
+		}
+		if isLittleEndian || entry.InType == magic.FILE_LEQUAD {
+			pointerValue = int64(readUint64(data, true))
+		} else {
+			pointerValue = int64(readUint64(data, false))
+		}
+		bytesRead = 8
+		
+	default:
+		// Default to 32-bit pointer for unknown types
+		if len(data) < 4 {
+			return 0, 0, fmt.Errorf("insufficient data for default pointer")
+		}
+		if isLittleEndian {
+			pointerValue = int64(readUint32(data, true))
+		} else {
+			pointerValue = int64(readUint32(data, false))
+		}
+		bytesRead = 4
+	}
+	
+	return pointerValue, bytesRead, nil
+}
+
+// calculateTargetOffset calculates the final target offset from the pointer value
+func (d *Detector) calculateTargetOffset(pointerValue int64, entry *magic.MagicEntry, baseOffset, dataLen int) int {
+	targetOffset := int(pointerValue)
+	
+	// Apply InOffset (additional offset)
+	if entry.Flag&magic.OFFADD != 0 {
+		// Add InOffset to the pointer value
+		targetOffset += int(entry.InOffset)
+	} else if entry.Flag&magic.INDIROFFADD != 0 {
+		// More complex offset addition - add both base and InOffset
+		targetOffset = baseOffset + int(pointerValue) + int(entry.InOffset)
+	} else {
+		// Simple case: just add InOffset
+		targetOffset += int(entry.InOffset)
+	}
+	
+	// Handle relative positioning of target
+	if entry.Flag&magic.OFFNEGATIVE != 0 {
+		// Target relative to end of file
+		targetOffset = dataLen + targetOffset
+	}
+	
+	return targetOffset
+}
+
+// createIndirectEvaluationEntry creates a new entry for evaluating at the indirect location
+func (d *Detector) createIndirectEvaluationEntry(original *magic.MagicEntry, targetOffset int) *magic.MagicEntry {
+	// Create a copy of the original entry but with the new offset
+	entry := &magic.MagicEntry{
+		Flag:      original.Flag &^ magic.INDIR, // Remove INDIR flag
+		ContLevel: original.ContLevel,
+		Factor:    original.Factor,
+		Reln:      original.Reln,
+		Vallen:    original.Vallen,
+		Type:      original.Type,
+		InType:    original.InType,
+		InOp:      original.InOp,
+		MaskOp:    original.MaskOp,
+		Cond:      original.Cond,
+		FactorOp:  original.FactorOp,
+		Offset:    int32(targetOffset),
+		InOffset:  original.InOffset,
+		Lineno:    original.Lineno,
+		NumMask:   original.NumMask,
+		Desc:      original.Desc,
+		Value:     original.Value,
+		Apple:     original.Apple,
+		MimeType:  original.MimeType,
+		Ext:       original.Ext,
+	}
+	
+	return entry
+}
+
+// matchIndirectPattern evaluates the pattern at the indirect location
+func (d *Detector) matchIndirectPattern(data []byte, entry *magic.MagicEntry, targetOffset int, depth int) (bool, string) {
+	// Ensure we have enough data at the target offset
+	if targetOffset >= len(data) {
+		return false, ""
+	}
+	
+	targetData := data[targetOffset:]
+	
+	// Based on the original entry type, evaluate the pattern
+	switch entry.Type {
+	case magic.FILE_BYTE:
+		return d.matchByte(targetData, entry, data)
+	case magic.FILE_SHORT:
+		return d.matchShort(targetData, entry, data)
+	case magic.FILE_LONG:
+		return d.matchLong(targetData, entry, data)
+	case magic.FILE_STRING:
+		return d.matchString(targetData, entry)
+	case magic.FILE_BESHORT:
+		return d.matchBEShort(targetData, entry, data)
+	case magic.FILE_BELONG:
+		return d.matchBELong(targetData, entry, data)
+	case magic.FILE_LESHORT:
+		return d.matchLEShort(targetData, entry, data)
+	case magic.FILE_LELONG:
+		return d.matchLELong(targetData, entry, data)
+	case magic.FILE_QUAD:
+		return d.matchQuad(targetData, entry, data)
+	case magic.FILE_BEQUAD:
+		return d.matchBEQuad(targetData, entry, data)
+	case magic.FILE_LEQUAD:
+		return d.matchLEQuad(targetData, entry, data)
+	case magic.FILE_INDIRECT:
+		// Recursive indirect reference
+		return d.matchIndirectWithDepth(targetData, entry, data, depth)
+	default:
+		// For unknown types, try string match as fallback
+		if match, result := d.matchString(targetData, entry); match {
+			return match, result
 		}
 		
-		// Check if the computed offset is valid
-		if indirectOffset >= 0 && indirectOffset < len(data) {
-			// For now, just check if we can read data at the computed offset
-			// A full implementation would recursively evaluate the pattern
-			desc := entry.GetDescription()
-			
-			if len(desc) > 0 && d.isValidDescription(desc) {
-				if d.options.Debug {
-					d.logger.Debug("INDIRECT: valid offset found", "description", desc)
-				}
-				return true, desc
-			}
+		// If string match fails, check if we have a valid description
+		desc := entry.GetDescription()
+		if len(desc) > 0 && d.isValidDescription(desc) {
+			return true, desc
 		}
 	}
 	
-	if d.options.Debug {
-		d.logger.Debug("INDIRECT: complex addressing not fully supported")
-	}
 	return false, ""
 }
 
 // matchUse handles FILE_USE type (Type 46) - references another named magic pattern
 func (d *Detector) matchUse(data []byte, entry *magic.MagicEntry) (bool, string) {
+	return d.matchUseWithDepth(data, entry, data, 0)
+}
+
+// matchUseWithDepth handles FILE_USE with recursion depth tracking
+func (d *Detector) matchUseWithDepth(data []byte, entry *magic.MagicEntry, fullData []byte, depth int) (bool, string) {
+	// Prevent infinite recursion
+	const maxUseDepth = 10
+	if depth > maxUseDepth {
+		if d.options.Debug {
+			d.logger.Debug("FILE_USE: maximum recursion depth exceeded", "depth", depth)
+		}
+		return false, ""
+	}
+
 	// FILE_USE references another magic entry by name
 	// The pattern name is stored in the Value field as a string
 	referenceName := entry.GetValueAsString()
 	
 	if d.options.Debug {
-		d.logger.Debug("FILE_USE: looking for reference", "reference_name", referenceName)
+		d.logger.Debug("FILE_USE: looking for reference", 
+			"reference_name", referenceName, 
+			"depth", depth)
 	}
 	
 	if len(referenceName) == 0 {
 		if d.options.Debug {
 			d.logger.Debug("FILE_USE: no reference name specified")
 		}
+		// Check if this entry has a standalone description
+		desc := entry.GetDescription()
+		if len(desc) > 0 && d.isValidDescription(desc) {
+			return true, desc
+		}
 		return false, ""
 	}
 	
 	// Look for the referenced magic entry in the database
-	// For now, we'll implement a simplified version that handles common cases
-	// A full implementation would require a name-to-entry mapping system
-	
-	// Check if this is a simple pattern that we can handle directly
-	desc := entry.GetDescription()
-	if len(desc) > 0 && d.isValidDescription(desc) {
-		// If we have a valid description, use it directly
-		// This handles cases where FILE_USE entries have standalone descriptions
+	referencedEntry := d.database.FindNamedEntry(referenceName)
+	if referencedEntry == nil {
 		if d.options.Debug {
-			d.logger.Debug("FILE_USE: using direct description", "description", desc)
+			d.logger.Debug("FILE_USE: referenced entry not found", "reference_name", referenceName)
 		}
-		return true, desc
+		
+		// Fallback: check if the current entry has a description
+		desc := entry.GetDescription()
+		if len(desc) > 0 && d.isValidDescription(desc) {
+			if d.options.Debug {
+				d.logger.Debug("FILE_USE: using fallback description", "description", desc)
+			}
+			return true, desc
+		}
+		return false, ""
 	}
 	
-	// For complex FILE_USE patterns, we would need to:
-	// 1. Build a name-to-entry mapping during database loading
-	// 2. Recursively evaluate the referenced entry
-	// 3. Handle circular references and depth limits
-	
 	if d.options.Debug {
-		d.logger.Debug("FILE_USE: complex reference not yet supported", "reference_name", referenceName)
+		d.logger.Debug("FILE_USE: found referenced entry", 
+			"reference_name", referenceName,
+			"referenced_type", referencedEntry.Type,
+			"referenced_offset", referencedEntry.Offset)
+	}
+	
+	// Recursively evaluate the referenced entry
+	return d.evaluateReferencedEntry(data, referencedEntry, fullData, depth+1)
+}
+
+// evaluateReferencedEntry evaluates a referenced magic entry
+func (d *Detector) evaluateReferencedEntry(data []byte, entry *magic.MagicEntry, fullData []byte, depth int) (bool, string) {
+	// Check for circular references by checking if this is another FILE_USE
+	if entry.Type == magic.FILE_USE {
+		return d.matchUseWithDepth(data, entry, fullData, depth)
+	}
+	
+	// Check for indirect addressing
+	if entry.Flag&magic.INDIR != 0 {
+		return d.matchIndirectWithDepth(data, entry, fullData, depth)
+	}
+	
+	// For direct entries, we need to handle the offset correctly
+	// The referenced entry might have a different offset than the current context
+	var targetData []byte
+	if entry.Offset >= 0 && int(entry.Offset) < len(fullData) {
+		targetData = fullData[entry.Offset:]
+	} else {
+		// If offset is invalid, use the current data
+		targetData = data
+	}
+	
+	// Evaluate the referenced entry using the appropriate match function
+	switch entry.Type {
+	case magic.FILE_BYTE:
+		return d.matchByte(targetData, entry, fullData)
+	case magic.FILE_SHORT:
+		return d.matchShort(targetData, entry, fullData)
+	case magic.FILE_LONG:
+		return d.matchLong(targetData, entry, fullData)
+	case magic.FILE_STRING:
+		return d.matchString(targetData, entry)
+	case magic.FILE_BESHORT:
+		return d.matchBEShort(targetData, entry, fullData)
+	case magic.FILE_BELONG:
+		return d.matchBELong(targetData, entry, fullData)
+	case magic.FILE_LESHORT:
+		return d.matchLEShort(targetData, entry, fullData)
+	case magic.FILE_LELONG:
+		return d.matchLELong(targetData, entry, fullData)
+	case magic.FILE_QUAD:
+		return d.matchQuad(targetData, entry, fullData)
+	case magic.FILE_BEQUAD:
+		return d.matchBEQuad(targetData, entry, fullData)
+	case magic.FILE_LEQUAD:
+		return d.matchLEQuad(targetData, entry, fullData)
+	case magic.FILE_PSTRING:
+		return d.matchPString(targetData, entry)
+	case magic.FILE_REGEX:
+		return d.matchRegex(targetData, entry)
+	case magic.FILE_SEARCH:
+		return d.matchSearch(targetData, entry, fullData)
+	case magic.FILE_FLOAT:
+		return d.matchFloat(targetData, entry, fullData)
+	case magic.FILE_DOUBLE:
+		return d.matchDouble(targetData, entry, fullData)
+	case magic.FILE_GUID:
+		return d.matchGUID(targetData, entry)
+	case magic.FILE_DER:
+		return d.matchDER(targetData, entry)
+	default:
+		// For unknown or complex types, try string match as fallback
+		if match, result := d.matchString(targetData, entry); match {
+			return match, result
+		}
+		
+		// Last resort: use the description if available
+		desc := entry.GetDescription()
+		if len(desc) > 0 && d.isValidDescription(desc) {
+			if d.options.Debug {
+				d.logger.Debug("FILE_USE: using referenced entry description", "description", desc)
+			}
+			return true, desc
+		}
 	}
 	
 	return false, ""

@@ -4,18 +4,21 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Database manages the magic database
 type Database struct {
-	db     *MagicDatabase
-	parser *Parser
+	db        *MagicDatabase
+	parser    *Parser
+	nameIndex map[string]*MagicEntry // Named patterns for FILE_USE
 }
 
 // NewDatabase creates a new magic database
 func NewDatabase() *Database {
 	return &Database{
-		parser: NewParser(),
+		parser:    NewParser(),
+		nameIndex: make(map[string]*MagicEntry),
 	}
 }
 
@@ -27,6 +30,7 @@ func (d *Database) Load(filename string) error {
 	}
 	
 	d.db = db
+	d.buildNameIndex()
 	return nil
 }
 
@@ -185,6 +189,67 @@ func FindMagicFile() (string, error) {
 	}
 	
 	return "", fmt.Errorf("magic file not found in any standard location")
+}
+
+// buildNameIndex builds an index of named magic patterns for FILE_USE resolution
+func (d *Database) buildNameIndex() {
+	if d.db == nil {
+		return
+	}
+	
+	// Clear existing index
+	d.nameIndex = make(map[string]*MagicEntry)
+	
+	// Scan all entries for named patterns
+	for set := 0; set < MAGIC_SETS; set++ {
+		for _, entry := range d.db.Magic[set] {
+			if entry == nil {
+				continue
+			}
+			
+			// Check if this entry has a name in the Apple field
+			// Many named patterns store their name in the Apple field
+			name := entry.GetApple()
+			if len(name) > 0 {
+				d.nameIndex[name] = entry
+			}
+			
+			// Also check the description for pattern names
+			// Some patterns use specific description formats that indicate names
+			desc := entry.GetDescription()
+			if len(desc) > 0 {
+				// Look for patterns like "use \name" or similar
+				if strings.HasPrefix(strings.ToLower(desc), "use ") {
+					patternName := strings.TrimSpace(desc[4:])
+					if len(patternName) > 0 {
+						d.nameIndex[patternName] = entry
+					}
+				}
+			}
+			
+			// Check for TYPE_NAME entries which define named patterns
+			if entry.Type == FILE_NAME {
+				valueStr := entry.GetValueAsString()
+				if len(valueStr) > 0 {
+					d.nameIndex[valueStr] = entry
+				}
+			}
+		}
+	}
+}
+
+// FindNamedEntry finds a magic entry by name for FILE_USE resolution
+func (d *Database) FindNamedEntry(name string) *MagicEntry {
+	return d.nameIndex[name]
+}
+
+// GetNamedEntries returns all named entries (for debugging)
+func (d *Database) GetNamedEntries() map[string]*MagicEntry {
+	result := make(map[string]*MagicEntry)
+	for k, v := range d.nameIndex {
+		result[k] = v
+	}
+	return result
 }
 
 // LoadDatabase loads the default magic database (convenience function)

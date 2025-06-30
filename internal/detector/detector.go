@@ -14,6 +14,7 @@ import (
 // DatabaseInterface defines the interface for magic databases
 type DatabaseInterface interface {
 	GetEntries() []*magic.MagicEntry
+	FindNamedEntry(name string) *magic.MagicEntry // For FILE_USE resolution
 }
 
 // Detector handles file type detection using magic patterns
@@ -518,6 +519,11 @@ func (d *Detector) isLowPriorityType(magicType uint8) bool {
 
 // matchEntry attempts to match data against a single magic entry
 func (d *Detector) matchEntry(data []byte, entry *magic.MagicEntry, fullData []byte) (bool, string) {
+	// Check for indirect addressing first
+	if entry.Flag&magic.INDIR != 0 {
+		return d.matchIndirectWithFullData(data, entry, fullData)
+	}
+
 	// Check if offset is valid
 	if entry.Offset < 0 || int(entry.Offset) >= len(data) {
 		return false, ""

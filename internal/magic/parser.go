@@ -70,8 +70,13 @@ func (p *Parser) Parse(r io.Reader) (*MagicDatabase, error) {
 		NMagic:  header.NMagic,
 	}
 
-	// Magic entry size is fixed at 376 bytes for version 18
-	actualEntrySize := uint32(376) // Fixed size based on MagicEntry struct
+	// Magic entry size depends on version: 376 for v18, 432 for v20
+	var actualEntrySize uint32
+	if header.Version >= 20 {
+		actualEntrySize = 432 // Version 20+
+	} else {
+		actualEntrySize = 376 // Version 18-19
+	}
 	
 	// Data starts at offset 376 based on analysis
 	actualDataStart := uint32(376) // Correct offset found through analysis
@@ -182,27 +187,27 @@ func (p *Parser) parseEntry(data []byte) (*MagicEntry, error) {
 	entry.NumMask = p.byteOrder.Uint64(data[offset : offset+8])
 	offset += 8
 
-	// Description at offset 32 (64 bytes) - CORRECTED!
-	copy(entry.Desc[:], data[offset:offset+MAXDESC])
-	offset += MAXDESC
-
-	// Value at offset 96 (64 bytes) 
-	copy(entry.Value[:], data[offset:offset+64])
+	// Value at offset 32 (96 bytes for v18) - CORRECTED ORDER!
+	copy(entry.Value[:], data[offset:offset+96])
 	// Convert multi-byte values according to byte order if needed
 	if !entry.IsString() {
 		p.convertValueByteOrder(entry)
 	}
-	offset += 64
+	offset += 96
 
-	// Apple at offset 160 (6 bytes)  
-	copy(entry.Apple[:6], data[offset:offset+6])
-	offset += 6
+	// Description at offset 128 (64 bytes)
+	copy(entry.Desc[:], data[offset:offset+MAXDESC])
+	offset += MAXDESC
 
-	// MIME type at offset 166 (80 bytes) - CORRECTED POSITION!
+	// MIME type at offset 192 (80 bytes)
 	copy(entry.MimeType[:], data[offset:offset+MAXMIME])
 	offset += MAXMIME
 
-	// Extensions at offset 248 (120 bytes)
+	// Apple at offset 272 (8 bytes)
+	copy(entry.Apple[:], data[offset:offset+8])
+	offset += 8
+
+	// Extensions at offset 280 (96 bytes for v18)
 	copy(entry.Ext[:], data[offset:offset+MAXEXT])
 
 	return entry, nil

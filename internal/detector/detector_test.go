@@ -679,13 +679,28 @@ func TestDetector_NewMagicTypes_EdgeCases_Extended(t *testing.T) {
 
 // Mock implementation for testing
 type MockDatabase struct {
-	entries []*magic.MagicEntry
+	entries    []*magic.MagicEntry
+	namedEntries map[string]*magic.MagicEntry
 }
 
 func (db *MockDatabase) GetEntries() []*magic.MagicEntry {
 	return db.entries
 }
 
+func (db *MockDatabase) FindNamedEntry(name string) *magic.MagicEntry {
+	if db.namedEntries == nil {
+		return nil
+	}
+	return db.namedEntries[name]
+}
+
 func (db *MockDatabase) SetEntries(entries []*magic.MagicEntry) {
 	db.entries = entries
+}
+
+func (db *MockDatabase) SetNamedEntry(name string, entry *magic.MagicEntry) {
+	if db.namedEntries == nil {
+		db.namedEntries = make(map[string]*magic.MagicEntry)
+	}
+	db.namedEntries[name] = entry
 }

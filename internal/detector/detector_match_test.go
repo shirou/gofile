@@ -1326,7 +1326,9 @@ func TestMatchSearch(t *testing.T) {
 // TestMatchIndirect tests the matchIndirect function
 func TestMatchIndirect(t *testing.T) {
 	db := &MockDatabase{}
-	detector := New(db, DefaultOptions())
+	opts := DefaultOptions()
+	opts.Debug = true
+	detector := New(db, opts)
 
 	tests := []struct {
 		name     string
@@ -1344,9 +1346,12 @@ func TestMatchIndirect(t *testing.T) {
 				0xFF, 0xEE, 0xDD, 0xCC, // Offset 16: target data
 			},
 			entry: &magic.MagicEntry{
-				Type:     magic.FILE_INDIRECT,
+				Type:     magic.FILE_BYTE,          // The actual data type to evaluate
+				Flag:     magic.INDIR,              // Indirect flag
+				InType:   magic.FILE_LONG,          // Pointer type (32-bit)
 				Offset:   0,
 				InOffset: 0,
+				Value:    [64]byte{0xFF}, // Expected value at target location
 				Desc:     [64]byte{'I', 'n', 'd', 'i', 'r', 'e', 'c', 't', ' ', 'm', 'a', 't', 'c', 'h'},
 				Reln:     '=',
 			},
@@ -1389,7 +1394,18 @@ func TestMatchIndirect(t *testing.T) {
 // TestMatchUse tests the matchUse function
 func TestMatchUse(t *testing.T) {
 	db := &MockDatabase{}
-	detector := New(db, DefaultOptions())
+	opts := DefaultOptions()
+	opts.Debug = true
+	detector := New(db, opts)
+
+	// Set up a named entry for reference testing
+	referencedEntry := &magic.MagicEntry{
+		Type:  magic.FILE_STRING,
+		Value: [64]byte{'t', 'e', 's', 't'},
+		Desc:  [64]byte{'R', 'e', 'f', 'e', 'r', 'e', 'n', 'c', 'e', 'd', ' ', 'e', 'n', 't', 'r', 'y'},
+		Reln:  '=',
+	}
+	db.SetNamedEntry("test_pattern", referencedEntry)
 
 	tests := []struct {
 		name     string
@@ -1419,13 +1435,46 @@ func TestMatchUse(t *testing.T) {
 			},
 			expected: true, // The function returns true if there's a valid description
 		},
+		{
+			name: "USE with valid reference",
+			data: []byte("test data"),
+			entry: &magic.MagicEntry{
+				Type:  magic.FILE_USE,
+				Value: [64]byte{'t', 'e', 's', 't', '_', 'p', 'a', 't', 't', 'e', 'r', 'n'},
+				Desc:  [64]byte{},
+				Reln:  '=',
+			},
+			expected: true,
+		},
+		{
+			name: "USE with invalid reference",
+			data: []byte("test data"),
+			entry: &magic.MagicEntry{
+				Type:  magic.FILE_USE,
+				Value: [64]byte{'n', 'o', 'n', 'e', 'x', 'i', 's', 't', 'e', 'n', 't'},
+				Desc:  [64]byte{'F', 'a', 'l', 'l', 'b', 'a', 'c', 'k'},
+				Reln:  '=',
+			},
+			expected: true, // Should use fallback description
+		},
+		{
+			name: "USE with non-matching reference",
+			data: []byte("different data"),
+			entry: &magic.MagicEntry{
+				Type:  magic.FILE_USE,
+				Value: [64]byte{'t', 'e', 's', 't', '_', 'p', 'a', 't', 't', 'e', 'r', 'n'},
+				Desc:  [64]byte{},
+				Reln:  '=',
+			},
+			expected: false, // Reference exists but doesn't match data
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			match, _ := detector.matchUse(tt.data, tt.entry)
+			match, result := detector.matchUse(tt.data, tt.entry)
 			if match != tt.expected {
-				t.Errorf("matchUse() match = %v, want %v", match, tt.expected)
+				t.Errorf("matchUse() match = %v, want %v, result = %q", match, tt.expected, result)
 			}
 		})
 	}

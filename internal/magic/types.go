@@ -16,7 +16,7 @@ const (
 	// Maximum sizes
 	MAXDESC = 64  // Maximum description length
 	MAXMIME = 80  // Maximum MIME type length  
-	MAXEXT  = 64  // Maximum extension length
+	MAXEXT  = 96  // Maximum extension length (v18)
 )
 
 // File type constants (from file.h)
@@ -107,16 +107,16 @@ const (
 )
 
 // MagicEntry represents a single magic entry (376 bytes in version 18, 432 in version 20)
-// Layout based on official file.h struct magic definition
+// Layout based on official file.h struct magic definition for version 18
 type MagicEntry struct {
-	// Core fields (24 bytes)
+	// Core fields (32 bytes) - CORRECT
 	Flag      uint16 // Offset 0: Flags (INDIR, OFFADD, etc.)
 	ContLevel uint8  // Offset 2: Continuation level
 	Factor    uint8  // Offset 3: Factor
 	
 	Reln   uint8 // Offset 4: Relation (=, >, <, etc.)
 	Vallen uint8 // Offset 5: Length of string value
-	Type   uint8 // Offset 6: Comparison type (FILE_*) - CORRECT POSITION
+	Type   uint8 // Offset 6: Comparison type (FILE_*)
 	InType uint8 // Offset 7: Type of indirection
 	
 	InOp     uint8 // Offset 8: Operator for indirection
@@ -131,15 +131,12 @@ type MagicEntry struct {
 	// Union for masks/counts (8 bytes at offset 24)
 	NumMask  uint64 // For numeric types (or StrRange/StrFlags for strings)
 	
-	// Text fields - CORRECTED POSITIONS based on analysis
-	Desc     [MAXDESC]byte  // Offset 32: Description (64 bytes) - CORRECTED!
-	Value    [64]byte       // Offset 96: Value field (64 bytes)
-	Apple    [8]byte        // Offset 160: Apple/format info (only first 6 bytes used) 
-	MimeType [MAXMIME]byte  // Offset 166: MIME type (80 bytes) - CORRECTED!
-	Ext      [MAXEXT]byte   // Offset 248: Extensions (120 bytes)
-	
-	// Padding to reach entry size (368 + 8 = 376 bytes for version 18)
-	_ [32]byte // Padding to reach exactly 376 bytes
+	// CORRECTED FIELD ORDER for version 18 (376 bytes total):
+	Value    [96]byte       // Offset 32: Value field (96 bytes for v18)
+	Desc     [MAXDESC]byte  // Offset 128: Description (64 bytes)
+	MimeType [MAXMIME]byte  // Offset 192: MIME type (80 bytes)
+	Apple    [8]byte        // Offset 272: Apple/format info (8 bytes)
+	Ext      [96]byte       // Offset 280: Extensions (96 bytes for v18)
 }
 
 // MagicDatabase represents the loaded magic database

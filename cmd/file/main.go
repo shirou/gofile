@@ -45,7 +45,7 @@ func main() {
 
 	// Load magic database
 	parser := magic.NewParser()
-	db, err := parser.ParseFile("test/testdata/magic/magic.mgc")
+	db, err := parser.ParseFile("/usr/share/misc/magic.mgc")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading magic database: %v\n", err)
 		os.Exit(1)
@@ -88,6 +88,31 @@ type FlatDatabase struct {
 
 func (db *FlatDatabase) GetEntries() []*magic.MagicEntry {
 	return db.entries
+}
+
+func (db *FlatDatabase) FindNamedEntry(name string) *magic.MagicEntry {
+	// Simple linear search for named entries
+	// In a real implementation, this would use an indexed lookup
+	for _, entry := range db.entries {
+		if entry == nil {
+			continue
+		}
+		
+		// Check Apple field for the name
+		apple := entry.GetApple()
+		if apple == name {
+			return entry
+		}
+		
+		// Check if entry type is FILE_NAME and value matches
+		if entry.Type == magic.FILE_NAME {
+			valueStr := entry.GetValueAsString()
+			if valueStr == name {
+				return entry
+			}
+		}
+	}
+	return nil
 }
 
 func processFile(filename string, det *detector.Detector) error {
