@@ -13,7 +13,7 @@ GOMOD=$(GOCMD) mod
 # Build parameters
 BINARY_NAME=gofile
 BINARY_UNIX=$(BINARY_NAME)_unix
-CMD_DIR=./cmd/file
+CMD_DIR=./cmd/gofile
 
 # Test parameters
 TEST_TIMEOUT=30s

@@ -224,6 +224,14 @@ func descriptionToMIME(desc string) string {
 		return "video/quicktime"
 
 	// Executable formats
+	case contains(desc, "elf") && contains(desc, "executable"):
+		return "application/x-executable"
+	case contains(desc, "elf") && contains(desc, "shared object"):
+		return "application/x-sharedlib"
+	case contains(desc, "elf") && contains(desc, "relocatable"):
+		return "application/x-object"
+	case contains(desc, "elf") && contains(desc, "core file"):
+		return "application/x-coredump"
 	case contains(desc, "executable") || contains(desc, "elf"):
 		return "application/x-executable"
 	case contains(desc, "shared object") || contains(desc, "shared library"):
@@ -240,6 +248,12 @@ func descriptionToMIME(desc string) string {
 		return "text/x-perl"
 	case contains(desc, "ruby"):
 		return "text/x-ruby"
+
+	// Database formats
+	case contains(desc, "sqlite"):
+		return "application/x-sqlite3"
+	case contains(desc, "composite document file"):
+		return "application/x-ole-storage"
 
 	// System formats
 	case contains(desc, "empty"):
