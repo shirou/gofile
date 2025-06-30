@@ -243,7 +243,9 @@ func (d *Detector) matchString(data []byte, entry *magic.MagicEntry) (bool, stri
 				if pattern[0] == 0x50 && pattern[1] == 0x4b && 
 				   (pattern[2] == 0x03 || pattern[2] == 0x05 || pattern[2] == 0x07) {
 					isKnownBinarySignature = true
-					return true, "ZIP archive data"
+					// Use the sophisticated ZIP parser for detailed information
+					zipDesc := d.parseZIPDetails(data)
+					return true, zipDesc
 				}
 			}
 			

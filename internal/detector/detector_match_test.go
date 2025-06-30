@@ -23,7 +23,7 @@ func TestMatchByte(t *testing.T) {
 			data: []byte{0xFF, 0x01, 0x02},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BYTE,
-				Value: [64]byte{0xFF},
+				Value: [96]byte{0xFF},
 				Desc:  [64]byte{'B', 'y', 't', 'e', ' ', 'm', 'a', 't', 'c', 'h'},
 				Reln:  '=',
 			},
@@ -35,7 +35,7 @@ func TestMatchByte(t *testing.T) {
 			data: []byte{0xFE, 0x01, 0x02},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BYTE,
-				Value: [64]byte{0xFF},
+				Value: [96]byte{0xFF},
 				Desc:  [64]byte{'B', 'y', 't', 'e', ' ', 'm', 'a', 't', 'c', 'h'},
 				Reln:  '=',
 			},
@@ -46,7 +46,7 @@ func TestMatchByte(t *testing.T) {
 			data: []byte{0xFF, 0x01, 0x02},
 			entry: &magic.MagicEntry{
 				Type:    magic.FILE_BYTE,
-				Value:   [64]byte{0xF0},
+				Value:   [96]byte{0xF0},
 				NumMask: 0xF0,
 				Desc:    [64]byte{'M', 'a', 's', 'k', 'e', 'd', ' ', 'b', 'y', 't', 'e'},
 				Reln:    '=',
@@ -59,7 +59,7 @@ func TestMatchByte(t *testing.T) {
 			data: []byte{},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BYTE,
-				Value: [64]byte{0xFF},
+				Value: [96]byte{0xFF},
 				Desc:  [64]byte{'B', 'y', 't', 'e'},
 				Reln:  '=',
 			},
@@ -97,7 +97,7 @@ func TestMatchShort(t *testing.T) {
 			data: []byte{0x12, 0x34, 0x56, 0x78}, // Big-endian data (flag=0 means big-endian)
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_SHORT,
-				Value: [64]byte{0x34, 0x12}, // Value stored as little-endian (0x1234)
+				Value: [96]byte{0x34, 0x12}, // Value stored as little-endian (0x1234)
 				Desc:  [64]byte{'S', 'h', 'o', 'r', 't', ' ', 'm', 'a', 't', 'c', 'h'},
 				Reln:  '=',
 				Flag:  0, // No LITTLE_ENDIAN flag, so reads as big-endian
@@ -110,7 +110,7 @@ func TestMatchShort(t *testing.T) {
 			data: []byte{0x34},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_SHORT,
-				Value: [64]byte{0x34, 0x12},
+				Value: [96]byte{0x34, 0x12},
 				Desc:  [64]byte{'S', 'h', 'o', 'r', 't'},
 				Reln:  '=',
 			},
@@ -121,7 +121,7 @@ func TestMatchShort(t *testing.T) {
 			data: []byte{0xFF, 0x12}, // Big-endian: 0xFF12
 			entry: &magic.MagicEntry{
 				Type:    magic.FILE_SHORT,
-				Value:   [64]byte{0x12, 0xF0}, // Little-endian stored: 0xF012
+				Value:   [96]byte{0x12, 0xF0}, // Little-endian stored: 0xF012
 				NumMask: 0xF0FF, // Mask: keep high byte of first and low byte of second
 				Desc:    [64]byte{'M', 'a', 's', 'k', 'e', 'd', ' ', 's', 'h', 'o', 'r', 't'},
 				Reln:    '=',
@@ -162,7 +162,7 @@ func TestMatchLong(t *testing.T) {
 			data: []byte{0x12, 0x34, 0x56, 0x78, 0xAB, 0xCD}, // Big-endian data
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_LONG,
-				Value: [64]byte{0x78, 0x56, 0x34, 0x12}, // Little-endian stored (0x12345678)
+				Value: [96]byte{0x78, 0x56, 0x34, 0x12}, // Little-endian stored (0x12345678)
 				Desc:  [64]byte{'L', 'o', 'n', 'g', ' ', 'm', 'a', 't', 'c', 'h'},
 				Reln:  '=',
 				Flag:  0, // No LITTLE_ENDIAN flag, reads as big-endian
@@ -175,7 +175,7 @@ func TestMatchLong(t *testing.T) {
 			data: []byte{0x78, 0x56, 0x34},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_LONG,
-				Value: [64]byte{0x78, 0x56, 0x34, 0x12},
+				Value: [96]byte{0x78, 0x56, 0x34, 0x12},
 				Desc:  [64]byte{'L', 'o', 'n', 'g'},
 				Reln:  '=',
 			},
@@ -213,7 +213,7 @@ func TestMatchString(t *testing.T) {
 			data: []byte("PNG\x0D\x0A\x1A\x0A"),
 			entry: &magic.MagicEntry{
 				Type:   magic.FILE_STRING,
-				Value:  [64]byte{'P', 'N', 'G'},
+				Value:  [96]byte{'P', 'N', 'G'},
 				Vallen: 3,
 				Desc:   [64]byte{'P', 'N', 'G', ' ', 'i', 'm', 'a', 'g', 'e'},
 				Reln:   '=',
@@ -226,7 +226,7 @@ func TestMatchString(t *testing.T) {
 			data: []byte("JPEG"),
 			entry: &magic.MagicEntry{
 				Type:   magic.FILE_STRING,
-				Value:  [64]byte{'P', 'N', 'G'},
+				Value:  [96]byte{'P', 'N', 'G'},
 				Vallen: 3,
 				Desc:   [64]byte{'P', 'N', 'G', ' ', 'i', 'm', 'a', 'g', 'e'},
 				Reln:   '=',
@@ -238,7 +238,7 @@ func TestMatchString(t *testing.T) {
 			data: []byte("PN"),
 			entry: &magic.MagicEntry{
 				Type:   magic.FILE_STRING,
-				Value:  [64]byte{'P', 'N', 'G'},
+				Value:  [96]byte{'P', 'N', 'G'},
 				Vallen: 3,
 				Desc:   [64]byte{'P', 'N', 'G'},
 				Reln:   '=',
@@ -277,7 +277,7 @@ func TestMatchBELong(t *testing.T) {
 			data: []byte{0x12, 0x34, 0x56, 0x78, 0xAB, 0xCD},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BELONG,
-				Value: [64]byte{0x78, 0x56, 0x34, 0x12}, // Stored as little-endian but compared as big-endian
+				Value: [96]byte{0x78, 0x56, 0x34, 0x12}, // Stored as little-endian but compared as big-endian
 				Desc:  [64]byte{'B', 'E', ' ', 'l', 'o', 'n', 'g'},
 				Reln:  '=',
 			},
@@ -289,7 +289,7 @@ func TestMatchBELong(t *testing.T) {
 			data: []byte{0x12, 0x34, 0x56},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BELONG,
-				Value: [64]byte{0x78, 0x56, 0x34, 0x12},
+				Value: [96]byte{0x78, 0x56, 0x34, 0x12},
 				Desc:  [64]byte{'B', 'E'},
 				Reln:  '=',
 			},
@@ -326,7 +326,7 @@ func TestMatchLELong(t *testing.T) {
 			data: []byte{0x78, 0x56, 0x34, 0x12, 0xAB, 0xCD},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_LELONG,
-				Value: [64]byte{0x78, 0x56, 0x34, 0x12},
+				Value: [96]byte{0x78, 0x56, 0x34, 0x12},
 				Desc:  [64]byte{'L', 'E', ' ', 'l', 'o', 'n', 'g'},
 				Reln:  '=',
 			},
@@ -337,7 +337,7 @@ func TestMatchLELong(t *testing.T) {
 			data: []byte{0x78, 0x56, 0x34},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_LELONG,
-				Value: [64]byte{0x78, 0x56, 0x34, 0x12},
+				Value: [96]byte{0x78, 0x56, 0x34, 0x12},
 				Reln:  '=',
 			},
 			expected: false,
@@ -370,7 +370,7 @@ func TestMatchBEShort(t *testing.T) {
 			data: []byte{0x12, 0x34, 0x56, 0x78},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BESHORT,
-				Value: [64]byte{0x34, 0x12}, // Stored as little-endian
+				Value: [96]byte{0x34, 0x12}, // Stored as little-endian
 				Desc:  [64]byte{'B', 'E', ' ', 's', 'h', 'o', 'r', 't'},
 				Reln:  '=',
 			},
@@ -381,7 +381,7 @@ func TestMatchBEShort(t *testing.T) {
 			data: []byte{0x12},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BESHORT,
-				Value: [64]byte{0x34, 0x12},
+				Value: [96]byte{0x34, 0x12},
 				Reln:  '=',
 			},
 			expected: false,
@@ -414,7 +414,7 @@ func TestMatchLEShort(t *testing.T) {
 			data: []byte{0x34, 0x12, 0x56, 0x78},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_LESHORT,
-				Value: [64]byte{0x34, 0x12},
+				Value: [96]byte{0x34, 0x12},
 				Desc:  [64]byte{'L', 'E', ' ', 's', 'h', 'o', 'r', 't'},
 				Reln:  '=',
 			},
@@ -425,7 +425,7 @@ func TestMatchLEShort(t *testing.T) {
 			data: []byte{0x34},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_LESHORT,
-				Value: [64]byte{0x34, 0x12},
+				Value: [96]byte{0x34, 0x12},
 				Reln:  '=',
 			},
 			expected: false,
@@ -458,7 +458,7 @@ func TestMatchBEQuad(t *testing.T) {
 			data: []byte{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BEQUAD,
-				Value: [64]byte{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0},
+				Value: [96]byte{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0},
 				Desc:  [64]byte{'B', 'E', ' ', 'q', 'u', 'a', 'd'},
 				Reln:  '=',
 			},
@@ -469,7 +469,7 @@ func TestMatchBEQuad(t *testing.T) {
 			data: []byte{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BEQUAD,
-				Value: [64]byte{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0},
+				Value: [96]byte{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0},
 				Reln:  '=',
 			},
 			expected: false,
@@ -502,7 +502,7 @@ func TestMatchLEQuad(t *testing.T) {
 			data: []byte{0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_LEQUAD,
-				Value: [64]byte{0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12},
+				Value: [96]byte{0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12},
 				Desc:  [64]byte{'L', 'E', ' ', 'q', 'u', 'a', 'd'},
 				Reln:  '=',
 			},
@@ -513,7 +513,7 @@ func TestMatchLEQuad(t *testing.T) {
 			data: []byte{0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_LEQUAD,
-				Value: [64]byte{0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12},
+				Value: [96]byte{0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12},
 				Reln:  '=',
 			},
 			expected: false,
@@ -546,7 +546,7 @@ func TestMatchQuad(t *testing.T) {
 			data: []byte{0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_QUAD,
-				Value: [64]byte{0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12},
+				Value: [96]byte{0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12},
 				Desc:  [64]byte{'Q', 'u', 'a', 'd'},
 				Reln:  '=',
 			},
@@ -580,7 +580,7 @@ func TestMatchPString(t *testing.T) {
 			data: []byte{0x04, 'T', 'e', 's', 't', 0x00}, // Length=4, "Test"
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_PSTRING,
-				Value: [64]byte{'T', 'e', 's', 't'},
+				Value: [96]byte{'T', 'e', 's', 't'},
 				Desc:  [64]byte{'P', 'a', 's', 'c', 'a', 'l', ' ', 's', 't', 'r', 'i', 'n', 'g'},
 				Reln:  '=',
 			},
@@ -591,7 +591,7 @@ func TestMatchPString(t *testing.T) {
 			data: []byte{},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_PSTRING,
-				Value: [64]byte{'T', 'e', 's', 't'},
+				Value: [96]byte{'T', 'e', 's', 't'},
 				Reln:  '=',
 			},
 			expected: false,
@@ -601,7 +601,7 @@ func TestMatchPString(t *testing.T) {
 			data: []byte{0x04, 'T', 'e'},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_PSTRING,
-				Value: [64]byte{'T', 'e', 's', 't'},
+				Value: [96]byte{'T', 'e', 's', 't'},
 				Reln:  '=',
 			},
 			expected: false,
@@ -634,7 +634,7 @@ func TestMatchGUID(t *testing.T) {
 			data: []byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_GUID,
-				Value: [64]byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
+				Value: [96]byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
 				Desc:  [64]byte{'G', 'U', 'I', 'D', ' ', 'm', 'a', 't', 'c', 'h'},
 				Reln:  '=',
 			},
@@ -645,7 +645,7 @@ func TestMatchGUID(t *testing.T) {
 			data: []byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_GUID,
-				Value: [64]byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
+				Value: [96]byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
 				Reln:  '=',
 			},
 			expected: false,
@@ -655,7 +655,7 @@ func TestMatchGUID(t *testing.T) {
 			data: []byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEE},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_GUID,
-				Value: [64]byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
+				Value: [96]byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
 				Reln:  '=',
 			},
 			expected: false,
@@ -688,7 +688,7 @@ func TestMatchDER(t *testing.T) {
 			data: []byte{0x30, 0x10, 0x02, 0x01, 0x01}, // ASN.1 SEQUENCE, length 16
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_DER,
-				Value: [64]byte{0x30, 0x10}, // Match both tag and length
+				Value: [96]byte{0x30, 0x10}, // Match both tag and length
 				Desc:  [64]byte{'A', 'S', 'N', '.', '1', ' ', 'D', 'E', 'R'},
 				Reln:  '=',
 			},
@@ -699,7 +699,7 @@ func TestMatchDER(t *testing.T) {
 			data: []byte{0x30},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_DER,
-				Value: [64]byte{0x30},
+				Value: [96]byte{0x30},
 				Reln:  '=',
 			},
 			expected: false,
@@ -709,7 +709,7 @@ func TestMatchDER(t *testing.T) {
 			data: []byte("-----BEGIN CERTIFICATE-----"),
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_DER,
-				Value: [64]byte{'-', '-', '-', '-', '-', 'B', 'E', 'G', 'I', 'N'},
+				Value: [96]byte{'-', '-', '-', '-', '-', 'B', 'E', 'G', 'I', 'N'},
 				Desc:  [64]byte{'P', 'E', 'M', ' ', 'c', 'e', 'r', 't', 'i', 'f', 'i', 'c', 'a', 't', 'e'},
 				Reln:  '=',
 			},
@@ -744,7 +744,7 @@ func TestMatchFloat(t *testing.T) {
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_FLOAT,
 				// Store 1.0 as double: 0x3FF0000000000000
-				Value: [64]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0, 0x3F}, // 1.0 as double
+				Value: [96]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0, 0x3F}, // 1.0 as double
 				Desc:  [64]byte{'F', 'l', 'o', 'a', 't', ' ', 'm', 'a', 't', 'c', 'h'},
 				Reln:  '=',
 			},
@@ -755,7 +755,7 @@ func TestMatchFloat(t *testing.T) {
 			data: []byte{0xDB, 0x0F, 0x49},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_FLOAT,
-				Value: [64]byte{0xDB, 0x0F, 0x49, 0x40},
+				Value: [96]byte{0xDB, 0x0F, 0x49, 0x40},
 				Reln:  '=',
 			},
 			expected: false,
@@ -788,7 +788,7 @@ func TestMatchDouble(t *testing.T) {
 			data: []byte{0x18, 0x2D, 0x44, 0x54, 0xFB, 0x21, 0x09, 0x40}, // IEEE 754 double (little-endian)
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_DOUBLE,
-				Value: [64]byte{0x18, 0x2D, 0x44, 0x54, 0xFB, 0x21, 0x09, 0x40},
+				Value: [96]byte{0x18, 0x2D, 0x44, 0x54, 0xFB, 0x21, 0x09, 0x40},
 				Desc:  [64]byte{'D', 'o', 'u', 'b', 'l', 'e', ' ', 'm', 'a', 't', 'c', 'h'},
 				Reln:  '=',
 			},
@@ -799,7 +799,7 @@ func TestMatchDouble(t *testing.T) {
 			data: []byte{0x18, 0x2D, 0x44, 0x54, 0xFB, 0x21, 0x09},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_DOUBLE,
-				Value: [64]byte{0x18, 0x2D, 0x44, 0x54, 0xFB, 0x21, 0x09, 0x40},
+				Value: [96]byte{0x18, 0x2D, 0x44, 0x54, 0xFB, 0x21, 0x09, 0x40},
 				Reln:  '=',
 			},
 			expected: false,
@@ -832,7 +832,7 @@ func TestMatchBEFloat(t *testing.T) {
 			data: []byte{0x40, 0x49, 0x0F, 0xDB}, // IEEE 754 float 3.14159 (big-endian)
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BEFLOAT,
-				Value: [64]byte{0x40, 0x49, 0x0F, 0xDB},
+				Value: [96]byte{0x40, 0x49, 0x0F, 0xDB},
 				Desc:  [64]byte{'B', 'E', ' ', 'f', 'l', 'o', 'a', 't'},
 				Reln:  '=',
 			},
@@ -843,7 +843,7 @@ func TestMatchBEFloat(t *testing.T) {
 			data: []byte{0x40, 0x49, 0x0F},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BEFLOAT,
-				Value: [64]byte{0x40, 0x49, 0x0F, 0xDB},
+				Value: [96]byte{0x40, 0x49, 0x0F, 0xDB},
 				Reln:  '=',
 			},
 			expected: false,
@@ -876,7 +876,7 @@ func TestMatchLEFloat(t *testing.T) {
 			data: []byte{0xDB, 0x0F, 0x49, 0x40}, // IEEE 754 float 3.14159 (little-endian)
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_LEFLOAT,
-				Value: [64]byte{0xDB, 0x0F, 0x49, 0x40},
+				Value: [96]byte{0xDB, 0x0F, 0x49, 0x40},
 				Desc:  [64]byte{'L', 'E', ' ', 'f', 'l', 'o', 'a', 't'},
 				Reln:  '=',
 			},
@@ -910,7 +910,7 @@ func TestMatchBEDouble(t *testing.T) {
 			data: []byte{0x40, 0x09, 0x21, 0xFB, 0x54, 0x44, 0x2D, 0x18}, // IEEE 754 double (big-endian)
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BEDOUBLE,
-				Value: [64]byte{0x40, 0x09, 0x21, 0xFB, 0x54, 0x44, 0x2D, 0x18},
+				Value: [96]byte{0x40, 0x09, 0x21, 0xFB, 0x54, 0x44, 0x2D, 0x18},
 				Desc:  [64]byte{'B', 'E', ' ', 'd', 'o', 'u', 'b', 'l', 'e'},
 				Reln:  '=',
 			},
@@ -944,7 +944,7 @@ func TestMatchLEDouble(t *testing.T) {
 			data: []byte{0x18, 0x2D, 0x44, 0x54, 0xFB, 0x21, 0x09, 0x40}, // IEEE 754 double (little-endian)
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_LEDOUBLE,
-				Value: [64]byte{0x18, 0x2D, 0x44, 0x54, 0xFB, 0x21, 0x09, 0x40},
+				Value: [96]byte{0x18, 0x2D, 0x44, 0x54, 0xFB, 0x21, 0x09, 0x40},
 				Desc:  [64]byte{'L', 'E', ' ', 'd', 'o', 'u', 'b', 'l', 'e'},
 				Reln:  '=',
 			},
@@ -978,7 +978,7 @@ func TestMatchBEDate(t *testing.T) {
 			data: []byte{0x63, 0xB4, 0x60, 0x00}, // Unix timestamp 1672531200 (2023-01-01) big-endian
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BEDATE,
-				Value: [64]byte{0x00, 0x60, 0xB4, 0x63}, // Stored as little-endian
+				Value: [96]byte{0x00, 0x60, 0xB4, 0x63}, // Stored as little-endian
 				Desc:  [64]byte{'B', 'E', ' ', 'd', 'a', 't', 'e'},
 				Reln:  '=',
 			},
@@ -989,7 +989,7 @@ func TestMatchBEDate(t *testing.T) {
 			data: []byte{0x63, 0xB4, 0x60},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BEDATE,
-				Value: [64]byte{0x00, 0x60, 0xB4, 0x63},
+				Value: [96]byte{0x00, 0x60, 0xB4, 0x63},
 				Reln:  '=',
 			},
 			expected: false,
@@ -1022,7 +1022,7 @@ func TestMatchLEDate(t *testing.T) {
 			data: []byte{0x00, 0x60, 0xB4, 0x63}, // Unix timestamp 1672531200 little-endian
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_LEDATE,
-				Value: [64]byte{0x00, 0x60, 0xB4, 0x63},
+				Value: [96]byte{0x00, 0x60, 0xB4, 0x63},
 				Desc:  [64]byte{'L', 'E', ' ', 'd', 'a', 't', 'e'},
 				Reln:  '=',
 			},
@@ -1056,7 +1056,7 @@ func TestMatchBELDate(t *testing.T) {
 			data: []byte{0x63, 0xB4, 0x60, 0x00}, // Unix timestamp big-endian
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BELDATE,
-				Value: [64]byte{0x63, 0xB4, 0x60, 0x00},
+				Value: [96]byte{0x63, 0xB4, 0x60, 0x00},
 				Desc:  [64]byte{'B', 'E', ' ', 'l', 'o', 'n', 'g', ' ', 'd', 'a', 't', 'e'},
 				Reln:  '=',
 			},
@@ -1090,7 +1090,7 @@ func TestMatchLEQDate(t *testing.T) {
 			data: []byte{0x00, 0x00, 0x2D, 0x79, 0x88, 0x33, 0x37, 0x17}, // 64-bit timestamp little-endian
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_LEQDATE,
-				Value: [64]byte{0x00, 0x00, 0x2D, 0x79, 0x88, 0x33, 0x37, 0x17},
+				Value: [96]byte{0x00, 0x00, 0x2D, 0x79, 0x88, 0x33, 0x37, 0x17},
 				Desc:  [64]byte{'L', 'E', ' ', '6', '4', '-', 'b', 'i', 't', ' ', 'd', 'a', 't', 'e'},
 				Reln:  '=',
 			},
@@ -1101,7 +1101,7 @@ func TestMatchLEQDate(t *testing.T) {
 			data: []byte{0x00, 0x00, 0x2D, 0x79, 0x88, 0x33, 0x37},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_LEQDATE,
-				Value: [64]byte{0x00, 0x00, 0x2D, 0x79, 0x88, 0x33, 0x37, 0x17},
+				Value: [96]byte{0x00, 0x00, 0x2D, 0x79, 0x88, 0x33, 0x37, 0x17},
 				Reln:  '=',
 			},
 			expected: false,
@@ -1134,7 +1134,7 @@ func TestMatchBEQDate(t *testing.T) {
 			data: []byte{0x17, 0x37, 0x33, 0x88, 0x79, 0x2D, 0x00, 0x00}, // 64-bit timestamp big-endian
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BEQDATE,
-				Value: [64]byte{0x17, 0x37, 0x33, 0x88, 0x79, 0x2D, 0x00, 0x00},
+				Value: [96]byte{0x17, 0x37, 0x33, 0x88, 0x79, 0x2D, 0x00, 0x00},
 				Desc:  [64]byte{'B', 'E', ' ', '6', '4', '-', 'b', 'i', 't', ' ', 'd', 'a', 't', 'e'},
 				Reln:  '=',
 			},
@@ -1168,7 +1168,7 @@ func TestMatchBEString16(t *testing.T) {
 			data: []byte{0x00, 0x54, 0x00, 0x65, 0x00, 0x73, 0x00, 0x74, 0x00, 0x00}, // "Test" in UTF-16 BE + null
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BESTRING16,
-				Value: [64]byte{'T', 'e', 's', 't'},
+				Value: [96]byte{'T', 'e', 's', 't'},
 				Desc:  [64]byte{'U', 'T', 'F', '-', '1', '6', ' ', 'B', 'E', ' ', 's', 't', 'r', 'i', 'n', 'g'},
 				Reln:  '=',
 			},
@@ -1179,7 +1179,7 @@ func TestMatchBEString16(t *testing.T) {
 			data: []byte{0x00},
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BESTRING16,
-				Value: [64]byte{'T', 'e', 's', 't'},
+				Value: [96]byte{'T', 'e', 's', 't'},
 				Reln:  '=',
 			},
 			expected: false,
@@ -1189,7 +1189,7 @@ func TestMatchBEString16(t *testing.T) {
 			data: []byte{0x00, 0x41, 0x00, 0x42, 0x30, 0x42, 0x00, 0x43}, // "AB?C" with Japanese character
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_BESTRING16,
-				Value: [64]byte{'A', 'B'},
+				Value: [96]byte{'A', 'B'},
 				Desc:  [64]byte{'U', 'n', 'i', 'c', 'o', 'd', 'e', ' ', 's', 't', 'r', 'i', 'n', 'g'},
 				Reln:  '=',
 			},
@@ -1223,7 +1223,7 @@ func TestMatchRegex(t *testing.T) {
 			data: []byte("Hello World 123"),
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_REGEX,
-				Value: [64]byte{'H', 'e', 'l', 'l', 'o', ' ', '\\', 'w', '+'},
+				Value: [96]byte{'H', 'e', 'l', 'l', 'o', ' ', '\\', 'w', '+'},
 				Desc:  [64]byte{'R', 'e', 'g', 'e', 'x', ' ', 'm', 'a', 't', 'c', 'h'},
 				Reln:  '=',
 			},
@@ -1234,7 +1234,7 @@ func TestMatchRegex(t *testing.T) {
 			data: []byte("Hello [invalid regex"),
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_REGEX,
-				Value: [64]byte{'[', 'i', 'n', 'v', 'a', 'l', 'i', 'd'},
+				Value: [96]byte{'[', 'i', 'n', 'v', 'a', 'l', 'i', 'd'},
 				Desc:  [64]byte{'F', 'a', 'l', 'l', 'b', 'a', 'c', 'k'},
 				Reln:  '=',
 			},
@@ -1245,7 +1245,7 @@ func TestMatchRegex(t *testing.T) {
 			data: []byte("Goodbye World"),
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_REGEX,
-				Value: [64]byte{'H', 'e', 'l', 'l', 'o'},
+				Value: [96]byte{'H', 'e', 'l', 'l', 'o'},
 				Reln:  '=',
 			},
 			expected: false,
@@ -1279,7 +1279,7 @@ func TestMatchSearch(t *testing.T) {
 			entry: &magic.MagicEntry{
 				Type:    magic.FILE_SEARCH,
 				Offset:  0,
-				Value:   [64]byte{'t', 'e', 's', 't'},
+				Value:   [96]byte{'t', 'e', 's', 't'},
 				NumMask: 50, // Search within first 50 bytes
 				Desc:    [64]byte{'S', 'e', 'a', 'r', 'c', 'h', ' ', 'm', 'a', 't', 'c', 'h'},
 				Reln:    '=',
@@ -1292,7 +1292,7 @@ func TestMatchSearch(t *testing.T) {
 			entry: &magic.MagicEntry{
 				Type:    magic.FILE_SEARCH,
 				Offset:  0,
-				Value:   [64]byte{'m', 'i', 's', 's', 'i', 'n', 'g'},
+				Value:   [96]byte{'m', 'i', 's', 's', 'i', 'n', 'g'},
 				NumMask: 50,
 				Reln:    '=',
 			},
@@ -1304,7 +1304,7 @@ func TestMatchSearch(t *testing.T) {
 			entry: &magic.MagicEntry{
 				Type:    magic.FILE_SEARCH,
 				Offset:  15, // Start search after "Skip this part "
-				Value:   [64]byte{'p', 'a', 't', 't', 'e', 'r', 'n'},
+				Value:   [96]byte{'p', 'a', 't', 't', 'e', 'r', 'n'},
 				NumMask: 20,
 				Desc:    [64]byte{'O', 'f', 'f', 's', 'e', 't', ' ', 's', 'e', 'a', 'r', 'c', 'h'},
 				Reln:    '=',
@@ -1351,7 +1351,7 @@ func TestMatchIndirect(t *testing.T) {
 				InType:   magic.FILE_LONG,          // Pointer type (32-bit)
 				Offset:   0,
 				InOffset: 0,
-				Value:    [64]byte{0xFF}, // Expected value at target location
+				Value:    [96]byte{0xFF}, // Expected value at target location
 				Desc:     [64]byte{'I', 'n', 'd', 'i', 'r', 'e', 'c', 't', ' ', 'm', 'a', 't', 'c', 'h'},
 				Reln:     '=',
 			},
@@ -1401,7 +1401,7 @@ func TestMatchUse(t *testing.T) {
 	// Set up a named entry for reference testing
 	referencedEntry := &magic.MagicEntry{
 		Type:  magic.FILE_STRING,
-		Value: [64]byte{'t', 'e', 's', 't'},
+		Value: [96]byte{'t', 'e', 's', 't'},
 		Desc:  [64]byte{'R', 'e', 'f', 'e', 'r', 'e', 'n', 'c', 'e', 'd', ' ', 'e', 'n', 't', 'r', 'y'},
 		Reln:  '=',
 	}
@@ -1418,7 +1418,7 @@ func TestMatchUse(t *testing.T) {
 			data: []byte("Some data"),
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_USE,
-				Value: [64]byte{'r', 'e', 'f', 'e', 'r', 'e', 'n', 'c', 'e'},
+				Value: [96]byte{'r', 'e', 'f', 'e', 'r', 'e', 'n', 'c', 'e'},
 				Desc:  [64]byte{'U', 's', 'e', ' ', 'm', 'a', 't', 'c', 'h'},
 				Reln:  '=',
 			},
@@ -1429,7 +1429,7 @@ func TestMatchUse(t *testing.T) {
 			data: []byte("Some data"),
 			entry: &magic.MagicEntry{
 				Type: magic.FILE_USE,
-				Value: [64]byte{}, // No reference name
+				Value: [96]byte{}, // No reference name
 				Desc: [64]byte{'U', 's', 'e'},
 				Reln: '=',
 			},
@@ -1440,7 +1440,7 @@ func TestMatchUse(t *testing.T) {
 			data: []byte("test data"),
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_USE,
-				Value: [64]byte{'t', 'e', 's', 't', '_', 'p', 'a', 't', 't', 'e', 'r', 'n'},
+				Value: [96]byte{'t', 'e', 's', 't', '_', 'p', 'a', 't', 't', 'e', 'r', 'n'},
 				Desc:  [64]byte{},
 				Reln:  '=',
 			},
@@ -1451,7 +1451,7 @@ func TestMatchUse(t *testing.T) {
 			data: []byte("test data"),
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_USE,
-				Value: [64]byte{'n', 'o', 'n', 'e', 'x', 'i', 's', 't', 'e', 'n', 't'},
+				Value: [96]byte{'n', 'o', 'n', 'e', 'x', 'i', 's', 't', 'e', 'n', 't'},
 				Desc:  [64]byte{'F', 'a', 'l', 'l', 'b', 'a', 'c', 'k'},
 				Reln:  '=',
 			},
@@ -1462,7 +1462,7 @@ func TestMatchUse(t *testing.T) {
 			data: []byte("different data"),
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_USE,
-				Value: [64]byte{'t', 'e', 's', 't', '_', 'p', 'a', 't', 't', 'e', 'r', 'n'},
+				Value: [96]byte{'t', 'e', 's', 't', '_', 'p', 'a', 't', 't', 'e', 'r', 'n'},
 				Desc:  [64]byte{},
 				Reln:  '=',
 			},
@@ -1529,7 +1529,7 @@ func TestMatchName(t *testing.T) {
 			data: []byte("File content"),
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_NAME,
-				Value: [64]byte{'*', '.', 't', 'x', 't'},
+				Value: [96]byte{'*', '.', 't', 'x', 't'},
 				Desc:  [64]byte{'T', 'e', 'x', 't', ' ', 'f', 'i', 'l', 'e'},
 				Reln:  '=',
 			},
@@ -1540,7 +1540,7 @@ func TestMatchName(t *testing.T) {
 			data: []byte("File content"),
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_NAME,
-				Value: [64]byte{'*', '.', 't', 'x', 't'},
+				Value: [96]byte{'*', '.', 't', 'x', 't'},
 				Reln:  '=',
 			},
 			expected: false,
@@ -1606,7 +1606,7 @@ func TestMatchCustomType(t *testing.T) {
 			data: []byte("CustomPattern"),
 			entry: &magic.MagicEntry{
 				Type:  99, // Custom type
-				Value: [64]byte{'C', 'u', 's', 't', 'o', 'm'},
+				Value: [96]byte{'C', 'u', 's', 't', 'o', 'm'},
 				Desc:  [64]byte{'C', 'u', 's', 't', 'o', 'm', ' ', 't', 'y', 'p', 'e'},
 				Reln:  '=',
 			},
@@ -1617,7 +1617,7 @@ func TestMatchCustomType(t *testing.T) {
 			data: []byte{0xFF, 0x00, 0x01},
 			entry: &magic.MagicEntry{
 				Type:  114, // Another custom type
-				Value: [64]byte{0xFF},
+				Value: [96]byte{0xFF},
 				Desc:  [64]byte{'C', 'u', 's', 't', 'o', 'm', ' ', 'b', 'y', 't', 'e'},
 				Reln:  '=',
 			},
@@ -1651,7 +1651,7 @@ func TestMatchLEString16(t *testing.T) {
 			data: []byte("Test"),
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_LESTRING16,
-				Value: [64]byte{'T', 'e', 's', 't'},
+				Value: [96]byte{'T', 'e', 's', 't'},
 				Desc:  [64]byte{'L', 'E', ' ', 's', 't', 'r', 'i', 'n', 'g', '1', '6'},
 				Reln:  '=',
 			},
@@ -1685,7 +1685,7 @@ func TestMatchOffset(t *testing.T) {
 			data: []byte{0x12, 0x34, 0x56, 0x78}, // Big-endian data
 			entry: &magic.MagicEntry{
 				Type:  magic.FILE_OFFSET,
-				Value: [64]byte{0x78, 0x56, 0x34, 0x12}, // Little-endian stored
+				Value: [96]byte{0x78, 0x56, 0x34, 0x12}, // Little-endian stored
 				Desc:  [64]byte{'O', 'f', 'f', 's', 'e', 't'},
 				Reln:  '=',
 				Flag:  0,
@@ -1712,7 +1712,7 @@ func TestEdgeCases(t *testing.T) {
 	t.Run("empty data handling", func(t *testing.T) {
 		entry := &magic.MagicEntry{
 			Type:  magic.FILE_BYTE,
-			Value: [64]byte{0xFF},
+			Value: [96]byte{0xFF},
 			Reln:  '=',
 		}
 		match, _ := detector.matchByte([]byte{}, entry, []byte{})
@@ -1724,7 +1724,7 @@ func TestEdgeCases(t *testing.T) {
 	t.Run("corrupted description handling", func(t *testing.T) {
 		entry := &magic.MagicEntry{
 			Type:  magic.FILE_BYTE,
-			Value: [64]byte{0xFF},
+			Value: [96]byte{0xFF},
 			Desc:  [64]byte{0x00, 0x01, 0x02, 0x03}, // Non-printable characters
 			Reln:  '=',
 		}
@@ -1736,7 +1736,7 @@ func TestEdgeCases(t *testing.T) {
 	t.Run("mask application", func(t *testing.T) {
 		entry := &magic.MagicEntry{
 			Type:    magic.FILE_BYTE,
-			Value:   [64]byte{0xF0},
+			Value:   [96]byte{0xF0},
 			NumMask: 0xF0,
 			Desc:    [64]byte{'M', 'a', 's', 'k', 'e', 'd'},
 			Reln:    '=',

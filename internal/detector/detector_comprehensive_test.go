@@ -40,7 +40,7 @@ func TestComprehensiveTypesCoverage(t *testing.T) {
 				Offset:   0,
 				Reln:     '=',
 				NumMask:  0,
-				Value:    [64]byte{0x12, 0x34, 0x56, 0x78},
+				Value:    [96]byte{0x12, 0x34, 0x56, 0x78},
 				Desc:     [64]byte{'T', 'e', 's', 't', ' ', 'd', 'e', 's', 'c'},
 			}
 
@@ -179,7 +179,7 @@ func TestAdvancedPatternMatcher(t *testing.T) {
 		entries := []*magic.MagicEntry{
 			{
 				Type:  magic.FILE_STRING,
-				Value: [64]byte{'t', 'e', 's', 't'},
+				Value: [96]byte{'t', 'e', 's', 't'},
 				Desc:  [64]byte{'T', 'e', 's', 't', ' ', 'f', 'i', 'l', 'e'},
 			},
 		}
@@ -198,7 +198,7 @@ func TestAdvancedPatternMatcher(t *testing.T) {
 		entries2 := []*magic.MagicEntry{
 			{
 				Type:  magic.FILE_STRING,
-				Value: [64]byte{'d', 'a', 't', 'a'},
+				Value: [96]byte{'d', 'a', 't', 'a'},
 				Desc:  [64]byte{'D', 'a', 't', 'a', ' ', 'f', 'i', 'l', 'e'},
 			},
 		}

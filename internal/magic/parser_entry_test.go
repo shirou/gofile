@@ -79,7 +79,7 @@ func TestParsePNGEntry(t *testing.T) {
 	entry := &MagicEntry{
 		Type:   FILE_STRING,
 		Offset: 0,
-		Value:  [64]byte{0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A},
+		Value:  [96]byte{0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A},
 		Desc:   [64]byte{'P', 'N', 'G', ' ', 'i', 'm', 'a', 'g', 'e', ' ', 'd', 'a', 't', 'a'},
 	}
 	

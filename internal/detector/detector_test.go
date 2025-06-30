@@ -16,7 +16,7 @@ func TestDetector_DetectBytes(t *testing.T) {
 		{
 			Offset: 0,
 			Type:   magic.FILE_LONG,
-			Value:  [64]byte{0x47, 0x4E, 0x50, 0x89}, // PNG signature first 4 bytes (little endian)
+			Value:  [96]byte{0x47, 0x4E, 0x50, 0x89}, // PNG signature first 4 bytes (little endian)
 			Vallen: 4,
 			Desc:   [64]byte{'P', 'N', 'G', ' ', 'i', 'm', 'a', 'g', 'e', ' ', 'd', 'a', 't', 'a'},
 			Reln:   '=',
@@ -25,7 +25,7 @@ func TestDetector_DetectBytes(t *testing.T) {
 		{
 			Offset: 0,
 			Type:   magic.FILE_SHORT,
-			Value:  [64]byte{0xD8, 0xFF}, // JPEG signature (little endian)
+			Value:  [96]byte{0xD8, 0xFF}, // JPEG signature (little endian)
 			Vallen: 2,
 			Desc:   [64]byte{'J', 'P', 'E', 'G', ' ', 'i', 'm', 'a', 'g', 'e', ' ', 'd', 'a', 't', 'a'},
 			Reln:   '=',
@@ -34,7 +34,7 @@ func TestDetector_DetectBytes(t *testing.T) {
 		{
 			Offset: 0,
 			Type:   magic.FILE_STRING,
-			Value:  [64]byte{'%', 'P', 'D', 'F'}, // PDF signature
+			Value:  [96]byte{'%', 'P', 'D', 'F'}, // PDF signature
 			Vallen: 4,
 			Desc:   [64]byte{'P', 'D', 'F', ' ', 'd', 'o', 'c', 'u', 'm', 'e', 'n', 't'},
 			Reln:   '=',
@@ -98,7 +98,7 @@ func TestDetector_DetectBytes_MIME(t *testing.T) {
 		{
 			Offset: 0,
 			Type:   magic.FILE_LONG,
-			Value:  [64]byte{0x47, 0x4E, 0x50, 0x89}, // PNG signature (little endian)
+			Value:  [96]byte{0x47, 0x4E, 0x50, 0x89}, // PNG signature (little endian)
 			Vallen: 4,
 			Desc:   [64]byte{'P', 'N', 'G', ' ', 'i', 'm', 'a', 'g', 'e', ' ', 'd', 'a', 't', 'a'},
 			Reln:   '=',
@@ -134,7 +134,7 @@ func TestDetector_MagicTypes_Quad(t *testing.T) {
 			{
 				Offset: 0,
 				Type:   magic.FILE_QUAD,
-				Value:  [64]byte{0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12},
+				Value:  [96]byte{0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12},
 				Vallen: 8,
 				Desc:   [64]byte{'6', '4', '-', 'b', 'i', 't', ' ', 'i', 'n', 't', 'e', 'g', 'e', 'r'},
 				Reln:   '=',
@@ -166,7 +166,7 @@ func TestDetector_MagicTypes_Quad(t *testing.T) {
 			{
 				Offset: 0,
 				Type:   magic.FILE_BEQUAD,
-				Value:  [64]byte{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0},
+				Value:  [96]byte{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0},
 				Vallen: 8,
 				Desc:   [64]byte{'B', 'E', ' ', '6', '4', '-', 'b', 'i', 't'},
 				Reln:   '=',
@@ -198,7 +198,7 @@ func TestDetector_MagicTypes_Quad(t *testing.T) {
 			{
 				Offset: 0,
 				Type:   magic.FILE_LEQUAD,
-				Value:  [64]byte{0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12},
+				Value:  [96]byte{0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12},
 				Vallen: 8,
 				Desc:   [64]byte{'L', 'E', ' ', '6', '4', '-', 'b', 'i', 't'},
 				Reln:   '=',
@@ -234,7 +234,7 @@ func TestDetector_MagicTypes_Float(t *testing.T) {
 			{
 				Offset: 0,
 				Type:   magic.FILE_BEFLOAT,
-				Value:  [64]byte{0x40, 0x49, 0x0F, 0xDB},
+				Value:  [96]byte{0x40, 0x49, 0x0F, 0xDB},
 				Vallen: 4,
 				Desc:   [64]byte{'B', 'E', ' ', 'f', 'l', 'o', 'a', 't'},
 				Reln:   '=',
@@ -266,7 +266,7 @@ func TestDetector_MagicTypes_Float(t *testing.T) {
 			{
 				Offset: 0,
 				Type:   magic.FILE_LEFLOAT,
-				Value:  [64]byte{0xDB, 0x0F, 0x49, 0x40}, // Same float in little-endian
+				Value:  [96]byte{0xDB, 0x0F, 0x49, 0x40}, // Same float in little-endian
 				Vallen: 4,
 				Desc:   [64]byte{'L', 'E', ' ', 'f', 'l', 'o', 'a', 't'},
 				Reln:   '=',
@@ -302,7 +302,7 @@ func TestDetector_MagicTypes_Double(t *testing.T) {
 			{
 				Offset: 0,
 				Type:   magic.FILE_BEDOUBLE,
-				Value:  [64]byte{0x40, 0x09, 0x21, 0xFB, 0x54, 0x44, 0x2D, 0x18},
+				Value:  [96]byte{0x40, 0x09, 0x21, 0xFB, 0x54, 0x44, 0x2D, 0x18},
 				Vallen: 8,
 				Desc:   [64]byte{'B', 'E', ' ', 'd', 'o', 'u', 'b', 'l', 'e'},
 				Reln:   '=',
@@ -334,7 +334,7 @@ func TestDetector_MagicTypes_Double(t *testing.T) {
 			{
 				Offset: 0,
 				Type:   magic.FILE_LEDOUBLE,
-				Value:  [64]byte{0x18, 0x2D, 0x44, 0x54, 0xFB, 0x21, 0x09, 0x40}, // Same double in little-endian
+				Value:  [96]byte{0x18, 0x2D, 0x44, 0x54, 0xFB, 0x21, 0x09, 0x40}, // Same double in little-endian
 				Vallen: 8,
 				Desc:   [64]byte{'L', 'E', ' ', 'd', 'o', 'u', 'b', 'l', 'e'},
 				Reln:   '=',
@@ -368,7 +368,7 @@ func TestDetector_MagicTypes_EdgeCases(t *testing.T) {
 			{
 				Offset: 0,
 				Type:   magic.FILE_QUAD,
-				Value:  [64]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+				Value:  [96]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
 				Vallen: 8,
 				Desc:   [64]byte{'6', '4', '-', 'b', 'i', 't'},
 				Reln:   '=',
@@ -400,7 +400,7 @@ func TestDetector_MagicTypes_EdgeCases(t *testing.T) {
 			{
 				Offset: 100, // Offset beyond test data
 				Type:   magic.FILE_BEFLOAT,
-				Value:  [64]byte{0x40, 0x49, 0x0F, 0xDB},
+				Value:  [96]byte{0x40, 0x49, 0x0F, 0xDB},
 				Vallen: 4,
 				Desc:   [64]byte{'f', 'l', 'o', 'a', 't'},
 				Reln:   '=',
@@ -437,7 +437,7 @@ func TestDetector_NewMagicTypes_ExtendedDates(t *testing.T) {
 			{
 				Offset: 0,
 				Type:   magic.FILE_BELDATE,
-				Value:  [64]byte{0x63, 0xB4, 0x60, 0x00}, // 1672531200 in big-endian
+				Value:  [96]byte{0x63, 0xB4, 0x60, 0x00}, // 1672531200 in big-endian
 				Vallen: 4,
 				Desc:   [64]byte{'B', 'E', ' ', 'l', 'o', 'n', 'g', ' ', 'd', 'a', 't', 'e'},
 				Reln:   '=',
@@ -470,7 +470,7 @@ func TestDetector_NewMagicTypes_ExtendedDates(t *testing.T) {
 			{
 				Offset: 0,
 				Type:   magic.FILE_LEQDATE,
-				Value:  [64]byte{0x00, 0x00, 0x2D, 0x79, 0x88, 0x33, 0x37, 0x17}, // Little-endian 64-bit
+				Value:  [96]byte{0x00, 0x00, 0x2D, 0x79, 0x88, 0x33, 0x37, 0x17}, // Little-endian 64-bit
 				Vallen: 8,
 				Desc:   [64]byte{'L', 'E', ' ', '6', '4', '-', 'b', 'i', 't', ' ', 'd', 'a', 't', 'e'},
 				Reln:   '=',
@@ -502,7 +502,7 @@ func TestDetector_NewMagicTypes_ExtendedDates(t *testing.T) {
 			{
 				Offset: 0,
 				Type:   magic.FILE_BEQDATE,
-				Value:  [64]byte{0x17, 0x37, 0x33, 0x88, 0x79, 0x2D, 0x00, 0x00}, // Big-endian 64-bit  
+				Value:  [96]byte{0x17, 0x37, 0x33, 0x88, 0x79, 0x2D, 0x00, 0x00}, // Big-endian 64-bit  
 				Vallen: 8,
 				Desc:   [64]byte{'B', 'E', ' ', '6', '4', '-', 'b', 'i', 't', ' ', 'd', 'a', 't', 'e'},
 				Reln:   '=',
@@ -537,7 +537,7 @@ func TestDetector_NewMagicTypes_String16(t *testing.T) {
 			{
 				Offset: 0,
 				Type:   magic.FILE_BESTRING16,
-				Value:  [64]byte{'T', 'e', 's', 't'}, // Pattern to match
+				Value:  [96]byte{'T', 'e', 's', 't'}, // Pattern to match
 				Vallen: 4,
 				Desc:   [64]byte{'U', 'T', 'F', '-', '1', '6', ' ', 'B', 'E', ' ', 's', 't', 'r', 'i', 'n', 'g'},
 				Reln:   '=',
@@ -573,7 +573,7 @@ func TestDetector_NewMagicTypes_Clear(t *testing.T) {
 			{
 				Offset: 0,
 				Type:   magic.FILE_CLEAR,
-				Value:  [64]byte{}, // Clear operation doesn't need a value
+				Value:  [96]byte{}, // Clear operation doesn't need a value
 				Vallen: 0,
 				Desc:   [64]byte{'C', 'l', 'e', 'a', 'r', ' ', 's', 't', 'a', 't', 'e'},
 				Reln:   '=',
@@ -582,7 +582,7 @@ func TestDetector_NewMagicTypes_Clear(t *testing.T) {
 			{
 				Offset: 0,
 				Type:   magic.FILE_BYTE,
-				Value:  [64]byte{0xFF},
+				Value:  [96]byte{0xFF},
 				Vallen: 1,
 				Desc:   [64]byte{'B', 'y', 't', 'e', ' ', 'm', 'a', 't', 'c', 'h'},
 				Reln:   '=',
@@ -618,7 +618,7 @@ func TestDetector_NewMagicTypes_EdgeCases_Extended(t *testing.T) {
 			{
 				Offset: 0,
 				Type:   magic.FILE_LEQDATE,
-				Value:  [64]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+				Value:  [96]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
 				Vallen: 8,
 				Desc:   [64]byte{'6', '4', '-', 'b', 'i', 't'},
 				Reln:   '=',
@@ -651,7 +651,7 @@ func TestDetector_NewMagicTypes_EdgeCases_Extended(t *testing.T) {
 			{
 				Offset: 0,
 				Type:   magic.FILE_BESTRING16,
-				Value:  [64]byte{'A', 'B'}, // Pattern to match
+				Value:  [96]byte{'A', 'B'}, // Pattern to match
 				Vallen: 2,
 				Desc:   [64]byte{'U', 'n', 'i', 'c', 'o', 'd', 'e', ' ', 's', 't', 'r', 'i', 'n', 'g'},
 				Reln:   '=',
