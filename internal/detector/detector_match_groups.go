@@ -14,7 +14,7 @@ func (d *Detector) matchStringGroup(data []byte, entries []*magic.MagicEntry) (b
 	}
 
 	text := string(data)
-	
+
 	// Build pattern map for efficient matching
 	patterns := make(map[string]*magic.MagicEntry)
 	for _, entry := range entries {
@@ -47,24 +47,24 @@ func (d *Detector) matchByteGroup(data []byte, entries []*magic.MagicEntry) (boo
 	}
 
 	firstByte := data[0]
-	
+
 	// Check all byte patterns against the first byte
 	for _, entry := range entries {
 		if entry.Offset == 0 {
 			expected := entry.Value[0]
-			
+
 			// Apply mask if specified
 			actual := firstByte
 			if entry.NumMask != 0 {
 				actual &= byte(entry.NumMask)
 				expected &= byte(entry.NumMask)
 			}
-			
+
 			if compareValues(uint64(actual), uint64(expected), entry.Reln) {
 				desc := entry.GetDescription()
 				if len(desc) > 0 && d.isValidDescription(desc) {
 					if d.options.Debug {
-						d.logger.Debug("✓ BYTE GROUP: value matched", 
+						d.logger.Debug("✓ BYTE GROUP: value matched",
 							"value", fmt.Sprintf("0x%02x", firstByte))
 					}
 					return true, desc
@@ -83,13 +83,13 @@ func (d *Detector) matchShortGroup(data []byte, entries []*magic.MagicEntry) (bo
 	}
 
 	// Pre-read values for different endiannesses
-	leBe := readUint16(data, true)  // Little-endian
+	leBe := readUint16(data, true)   // Little-endian
 	beVal := readUint16(data, false) // Big-endian
 
 	for _, entry := range entries {
 		if entry.Offset == 0 {
 			var actual uint16
-			
+
 			switch entry.Type {
 			case magic.FILE_SHORT:
 				actual = leBe // Default little-endian
@@ -113,7 +113,7 @@ func (d *Detector) matchShortGroup(data []byte, entries []*magic.MagicEntry) (bo
 				desc := entry.GetDescription()
 				if len(desc) > 0 && d.isValidDescription(desc) {
 					if d.options.Debug {
-						d.logger.Debug("✓ SHORT GROUP: value matched", 
+						d.logger.Debug("✓ SHORT GROUP: value matched",
 							"value", fmt.Sprintf("0x%04x", actual))
 					}
 					return true, desc
@@ -138,7 +138,7 @@ func (d *Detector) matchLongGroup(data []byte, entries []*magic.MagicEntry) (boo
 	for _, entry := range entries {
 		if entry.Offset == 0 {
 			var actual uint32
-			
+
 			switch entry.Type {
 			case magic.FILE_LONG:
 				actual = leVal // Default little-endian
@@ -150,9 +150,9 @@ func (d *Detector) matchLongGroup(data []byte, entries []*magic.MagicEntry) (boo
 				continue
 			}
 
-			expected := uint32(entry.Value[0]) | 
-				uint32(entry.Value[1])<<8 | 
-				uint32(entry.Value[2])<<16 | 
+			expected := uint32(entry.Value[0]) |
+				uint32(entry.Value[1])<<8 |
+				uint32(entry.Value[2])<<16 |
 				uint32(entry.Value[3])<<24
 
 			// Apply mask if specified
@@ -165,7 +165,7 @@ func (d *Detector) matchLongGroup(data []byte, entries []*magic.MagicEntry) (boo
 				desc := entry.GetDescription()
 				if len(desc) > 0 && d.isValidDescription(desc) {
 					if d.options.Debug {
-						d.logger.Debug("✓ LONG GROUP: value matched", 
+						d.logger.Debug("✓ LONG GROUP: value matched",
 							"value", fmt.Sprintf("0x%08x", actual))
 					}
 					return true, desc

@@ -25,7 +25,7 @@ func init() {
 		// If we can't load the default database, we'll return an error on first use
 		return
 	}
-	
+
 	defaultDetector = detector.New(db, detector.DefaultOptions())
 }
 
@@ -43,18 +43,18 @@ func DetectFileWithOptions(path string, opts *Options) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	detectorOpts := &detector.Options{
 		MIME:        opts.MIME,
 		Brief:       opts.Brief,
 		MaxReadSize: opts.MaxReadSize,
 		Debug:       opts.Debug,
 	}
-	
+
 	if detectorOpts.MaxReadSize == 0 {
 		detectorOpts.MaxReadSize = 1024 * 1024 // 1MB default
 	}
-	
+
 	d := detector.New(db, detectorOpts)
 	return d.DetectFile(path)
 }

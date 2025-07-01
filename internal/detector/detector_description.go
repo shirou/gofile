@@ -3,6 +3,7 @@ package detector
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/shirou/gofile/internal/magic"
 )
@@ -60,6 +61,33 @@ func (d *Detector) getDefaultDescription(data []byte, entry *magic.MagicEntry) s
 		return d.parseELFDetails(data)
 	}
 
+	// Check for GZIP signature
+	if len(data) >= 10 && data[0] == 0x1f && data[1] == 0x8b {
+		return d.parseGZIPDetails(data)
+	}
+
+	// Check for Python bytecode signature
+	if len(data) >= 16 {
+		if pythonVersion := d.parsePythonBytecode(data); pythonVersion != "" {
+			return pythonVersion
+		}
+	}
+
+	// Check for RPM signature
+	if len(data) >= 100 && data[0] == 0xed && data[1] == 0xab && data[2] == 0xee && data[3] == 0xdb {
+		return d.parseRPMDetails(data)
+	}
+
+	// Check for BMP signature
+	if len(data) >= 54 && data[0] == 'B' && data[1] == 'M' {
+		return d.parseBMPDetails(data)
+	}
+
+	// Check for ICO/CUR signature
+	if len(data) >= 22 && data[0] == 0x00 && data[1] == 0x00 && (data[2] == 0x01 || data[2] == 0x02) && data[3] == 0x00 {
+		return d.parseICODetails(data)
+	}
+
 	// Check for script shebangs first
 	if len(data) >= 2 && data[0] == '#' && data[1] == '!' {
 		return d.parseScriptDetails(data)
@@ -87,7 +115,35 @@ func (d *Detector) getDefaultDescription(data []byte, entry *magic.MagicEntry) s
 
 	total := ascii + extendedAscii
 	if total > checkLen/2 {
-		// Check for script patterns without shebang first
+		// Check for RFC 822 mail headers first before script detection to avoid false positives
+		if len(data) >= 9 {
+			content := strings.ToLower(string(data[:min(512, len(data))])) // Check first 512 bytes
+
+			// Check for RFC 822 mail headers at the beginning (not embedded in other content)
+			// Require headers to start within the first 50 characters to avoid false positives
+			// from quoted emails or forwarded messages
+			firstPart := content
+			if len(firstPart) > 100 {
+				firstPart = content[:100] // Only check first 100 chars for header start
+			}
+
+			if strings.HasPrefix(content, "received:") ||
+				strings.HasPrefix(content, "from:") ||
+				strings.HasPrefix(content, "to:") ||
+				strings.HasPrefix(content, "subject:") ||
+				strings.HasPrefix(content, "date:") ||
+				strings.HasPrefix(content, "message-id:") ||
+				strings.HasPrefix(content, "mime-version:") ||
+				// Check for headers near the beginning (within first 100 chars)
+				(strings.Index(firstPart, "received:") >= 0 && strings.Index(firstPart, "received:") < 50) ||
+				(strings.Index(firstPart, "from:") >= 0 && strings.Index(firstPart, "from:") < 50) ||
+				(strings.Index(firstPart, "date:") >= 0 && strings.Index(firstPart, "date:") < 50) ||
+				(strings.Index(firstPart, "message-id:") >= 0 && strings.Index(firstPart, "message-id:") < 50) {
+				return "RFC 822 mail, ASCII text"
+			}
+		}
+
+		// Check for script patterns without shebang second
 		if scriptType := d.detectScriptType(data); scriptType != "" {
 			return scriptType
 		}
@@ -104,7 +160,6 @@ func (d *Detector) getDefaultDescription(data []byte, entry *magic.MagicEntry) s
 		}
 
 		// Check for special text file types
-		isRFC822 := false
 		isHTML := false
 		isXML := false
 		isBatch := false
@@ -150,27 +205,6 @@ func (d *Detector) getDefaultDescription(data []byte, entry *magic.MagicEntry) s
 				strings.HasPrefix(content, "-----begin private key-----") ||
 				strings.HasPrefix(content, "-----begin public key-----")) {
 				isPEM = true
-			}
-
-			// Check for RFC 822 mail headers (if not HTML/XML/Batch/PEM)
-			if !isHTML && !isXML && !isBatch && !isPEM {
-				// Check if it starts with common mail headers
-				if strings.HasPrefix(content, "received:") ||
-					strings.HasPrefix(content, "from:") ||
-					strings.HasPrefix(content, "to:") ||
-					strings.HasPrefix(content, "subject:") ||
-					strings.HasPrefix(content, "date:") ||
-					strings.HasPrefix(content, "message-id:") ||
-					// Also check for headers anywhere in the first part
-					strings.Contains(content, "received:") ||
-					strings.Contains(content, "from:") ||
-					strings.Contains(content, "to:") ||
-					strings.Contains(content, "subject:") ||
-					strings.Contains(content, "date:") ||
-					strings.Contains(content, "message-id:") ||
-					strings.Contains(content, "mime-version:") {
-					isRFC822 = true
-				}
 			}
 		}
 
@@ -227,12 +261,6 @@ func (d *Detector) getDefaultDescription(data []byte, entry *magic.MagicEntry) s
 				}
 			} else if isPEM {
 				desc = "PEM certificate"
-			} else if isRFC822 {
-				if hasCRLF {
-					desc = "RFC 822 mail, ASCII text, with CRLF line terminators"
-				} else {
-					desc = "RFC 822 mail, ASCII text"
-				}
 			} else {
 				if hasCRLF {
 					desc = "ASCII text, with CRLF line terminators"
@@ -244,7 +272,6 @@ func (d *Detector) getDefaultDescription(data []byte, entry *magic.MagicEntry) s
 
 		return desc
 	}
-
 
 	// Check for common text patterns
 	if entry.Offset == 11 && entry.Value[0] == 0x0D {
@@ -410,43 +437,43 @@ func (d *Detector) detectOfficeFormat(data []byte) string {
 
 	// Parse the ZIP file structure to look for [Content_Types].xml
 	// Office 2007+ formats always contain this file
-	
+
 	// Get filename length and extra field length from local file header
 	filenameLength := uint16(data[26]) | uint16(data[27])<<8
 	// extraFieldLength := uint16(data[28]) | uint16(data[29])<<8
-	
+
 	// Check if we have enough data for the filename
 	filenameOffset := 30
 	if len(data) < filenameOffset+int(filenameLength) {
 		return ""
 	}
-	
+
 	// Extract first filename
 	filename := string(data[filenameOffset : filenameOffset+int(filenameLength)])
-	
+
 	// Check if first file is [Content_Types].xml (common in Office files)
 	if filename == "[Content_Types].xml" {
 		// This is likely an Office format, now scan further to identify specific type
 		return d.identifyOfficeFormat(data)
 	}
-	
+
 	// If not the first file, scan through more entries to look for Office signatures
 	// This is a simplified check - real implementation would parse the entire directory
 	// offset := filenameOffset + int(filenameLength) + int(extraFieldLength)
-	
+
 	// Look for content type patterns in the data (simplified approach)
 	dataStr := string(data)
 	if strings.Contains(dataStr, "[Content_Types].xml") {
 		return d.identifyOfficeFormat(data)
 	}
-	
+
 	return ""
 }
 
 // identifyOfficeFormat determines specific Office format type
 func (d *Detector) identifyOfficeFormat(data []byte) string {
 	dataStr := string(data)
-	
+
 	// Look for specific Office content type patterns
 	if strings.Contains(dataStr, "word/") || strings.Contains(dataStr, "wordprocessingml") {
 		return "Microsoft Word 2007+"
@@ -455,7 +482,7 @@ func (d *Detector) identifyOfficeFormat(data []byte) string {
 	} else if strings.Contains(dataStr, "ppt/") || strings.Contains(dataStr, "presentationml") {
 		return "Microsoft PowerPoint 2007+"
 	}
-	
+
 	// Generic Office format if we can't determine specific type
 	return "Microsoft Office 2007+"
 }
@@ -468,7 +495,7 @@ func (d *Detector) parseRIFFDetails(data []byte) string {
 
 	// RIFF format: "RIFF" + 4 bytes size + 4 bytes format
 	format := string(data[8:12])
-	
+
 	switch format {
 	case "WAVE":
 		return d.parseWAVEDetails(data)
@@ -498,10 +525,10 @@ func (d *Detector) parseWAVEDetails(data []byte) string {
 	}
 
 	// Parse format data starting at offset 20
-	formatTag := uint16(data[20]) | uint16(data[21])<<8      // Audio format (1 = PCM)
-	channels := uint16(data[22]) | uint16(data[23])<<8       // Number of channels
+	formatTag := uint16(data[20]) | uint16(data[21])<<8 // Audio format (1 = PCM)
+	channels := uint16(data[22]) | uint16(data[23])<<8  // Number of channels
 	sampleRate := uint32(data[24]) | uint32(data[25])<<8 | uint32(data[26])<<16 | uint32(data[27])<<24
-	bitsPerSample := uint16(data[34]) | uint16(data[35])<<8  // Bits per sample
+	bitsPerSample := uint16(data[34]) | uint16(data[35])<<8 // Bits per sample
 
 	// Build description
 	desc := "RIFF (little-endian) data, WAVE audio"
@@ -547,7 +574,7 @@ func (d *Detector) parseEBMLDetails(data []byte) string {
 	// Look for DocType information in the EBML header
 	// This is a simplified parser that looks for known patterns
 	dataStr := string(data[:min(512, len(data))])
-	
+
 	if strings.Contains(dataStr, "matroska") {
 		return "Matroska data"
 	} else if strings.Contains(dataStr, "webm") {
@@ -842,7 +869,7 @@ func (d *Detector) parseELFDetails(data []byte) string {
 	class := data[4]
 	encoding := data[5]
 	osABI := data[7]
-	
+
 	var bitness string
 	if class == 1 {
 		bitness = "32-bit"
@@ -1000,8 +1027,8 @@ func (d *Detector) parseScriptDetails(data []byte) string {
 		return "Python script text executable"
 	case strings.Contains(shebang, "ruby"):
 		return "Ruby script text executable"
-	case strings.Contains(shebang, "/bin/sh") || strings.Contains(shebang, "/bin/bash") || 
-		 strings.Contains(shebang, "/bin/dash") || strings.Contains(shebang, "/bin/zsh"):
+	case strings.Contains(shebang, "/bin/sh") || strings.Contains(shebang, "/bin/bash") ||
+		strings.Contains(shebang, "/bin/dash") || strings.Contains(shebang, "/bin/zsh"):
 		return "Bourne-Again shell script text executable"
 	case strings.Contains(shebang, "node") || strings.Contains(shebang, "nodejs"):
 		return "Node.js script text executable"
@@ -1029,10 +1056,29 @@ func (d *Detector) detectScriptType(data []byte) string {
 	}
 	content := strings.ToLower(string(data[:checkLen]))
 
-	// Python patterns
-	if strings.Contains(content, "import ") || strings.Contains(content, "from ") ||
-		strings.Contains(content, "def ") || strings.Contains(content, "class ") ||
-		strings.Contains(content, "print(") || strings.Contains(content, "__name__") {
+	// Python patterns - make more specific to avoid false positives with mail headers
+	pythonPatterns := 0
+	if strings.Contains(content, "import ") {
+		pythonPatterns++
+	}
+	// Be more specific with "from" - avoid matching "From:" mail headers
+	if strings.Contains(content, "from ") && !strings.Contains(content, "from:") {
+		pythonPatterns++
+	}
+	if strings.Contains(content, "def ") {
+		pythonPatterns++
+	}
+	if strings.Contains(content, "class ") {
+		pythonPatterns++
+	}
+	if strings.Contains(content, "print(") {
+		pythonPatterns++
+	}
+	if strings.Contains(content, "__name__") {
+		pythonPatterns++
+	}
+	// Require at least 2 Python patterns to avoid false positives
+	if pythonPatterns >= 2 {
 		return "Python script, ASCII text executable"
 	}
 
@@ -1040,12 +1086,12 @@ func (d *Detector) detectScriptType(data []byte) string {
 	if strings.Contains(content, "use strict") || strings.Contains(content, "use warnings") ||
 		strings.Contains(content, "my $") || strings.Contains(content, "our $") ||
 		strings.Contains(content, "package ") || strings.Contains(content, "sub ") {
-		
+
 		// Check if it's a Perl module (has package declaration but no shebang)
 		if strings.Contains(content, "package ") && !strings.HasPrefix(content, "#!") {
 			return "Perl5 module source, ASCII text"
 		}
-		
+
 		return "Perl script text executable"
 	}
 
@@ -1079,4 +1125,367 @@ func (d *Detector) detectScriptType(data []byte) string {
 	}
 
 	return ""
+}
+
+// parseGZIPDetails parses GZIP file header and extracts detailed information
+func (d *Detector) parseGZIPDetails(data []byte) string {
+	if len(data) < 10 {
+		return "data"
+	}
+
+	// GZIP header format:
+	// 0-1: Magic number (1f 8b)
+	// 2: Compression method (08 for deflate)
+	// 3: Flags
+	// 4-7: Modification time (4 bytes, little-endian)
+	// 8: Extra flags
+	// 9: Operating system
+
+	method := data[2]
+	if method != 0x08 {
+		return "gzip compressed data"
+	}
+
+	flags := data[3]
+	mtime := readUint32(data[4:8], true) // Little-endian
+	os := data[9]
+
+	result := "gzip compressed data"
+
+	// Parse original filename if present (FNAME flag set)
+	offset := 10
+	var originalName string
+	if flags&0x08 != 0 && offset < len(data) {
+		// Find null-terminated filename
+		for i := offset; i < len(data); i++ {
+			if data[i] == 0 {
+				originalName = string(data[offset:i])
+				offset = i + 1
+				break
+			}
+		}
+	}
+
+	// Add original filename if available (escape non-printable characters)
+	if originalName != "" {
+		cleanName := ""
+		for _, r := range originalName {
+			if r >= 32 && r <= 126 {
+				cleanName += string(r)
+			} else {
+				cleanName += fmt.Sprintf("\\%03o", r)
+			}
+		}
+		result += fmt.Sprintf(", was \"%s\"", cleanName)
+	}
+
+	// Add modification time if non-zero
+	if mtime != 0 {
+		// Convert Unix timestamp to time
+		t := time.Unix(int64(mtime), 0)
+		result += fmt.Sprintf(", last modified: %s", t.Format("Mon Jan 2 15:04:05 2006"))
+	}
+
+	// Add OS info
+	osNames := map[byte]string{
+		0:   "FAT filesystem (MS-DOS, OS/2, NT/Win32)",
+		1:   "Amiga",
+		2:   "VMS (or OpenVMS)",
+		3:   "Unix",
+		4:   "VM/CMS",
+		5:   "Atari TOS",
+		6:   "HPFS filesystem (OS/2, NT)",
+		7:   "Macintosh",
+		8:   "Z-System",
+		9:   "CP/M",
+		10:  "TOPS-20",
+		11:  "NTFS filesystem (NT)",
+		12:  "QDOS",
+		13:  "Acorn RISCOS",
+		255: "unknown",
+	}
+
+	if osName, ok := osNames[os]; ok && os != 255 {
+		if os == 3 {
+			result += ", from Unix"
+		} else if osName != "" {
+			result += fmt.Sprintf(", from %s", osName)
+		}
+	}
+
+	// Try to extract original size from the last 4 bytes
+	if len(data) >= 4 {
+		originalSize := readUint32(data[len(data)-4:], true) // Little-endian
+		result += fmt.Sprintf(", original size modulo 2^32 %d", originalSize)
+	}
+
+	return result
+}
+
+// parsePythonBytecode detects Python bytecode files and returns version information
+func (d *Detector) parsePythonBytecode(data []byte) string {
+	if len(data) < 16 {
+		return ""
+	}
+
+	// Python .pyc files start with a magic number (4 bytes) followed by timestamp (4 bytes)
+	// and size information (4 bytes for Python 3.3+) or just data for earlier versions
+
+	// Python magic numbers for different versions (little-endian)
+	// Based on official Python source and file command magic database
+	magicNumbers := map[uint32]string{
+		0x0a0df23e: "python 2.0 byte-compiled",
+		0x0a0df23f: "python 2.0 byte-compiled",
+		0x0a0df245: "python 2.1 byte-compiled",
+		0x0a0df24c: "python 2.2 byte-compiled",
+		0x0a0df259: "python 2.3 byte-compiled",
+		0x0a0df26d: "python 2.4 byte-compiled",
+		0x0a0df287: "python 2.5 byte-compiled",
+		0x0a0df2b3: "python 2.6 byte-compiled",
+		0x0a0df2d1: "python 2.6 byte-compiled", // Updated based on actual file
+		0x0a0df303: "python 2.7 byte-compiled", // Updated based on actual file
+		0x0a0df33a: "python 3.1 byte-compiled",
+		0x0a0df36b: "python 3.2 byte-compiled",
+		0x0a0df39c: "python 3.3 byte-compiled",
+		0x0a0df3b9: "python 3.4 byte-compiled",
+		0x0a0df3f0: "python 3.5 byte-compiled",
+		0x0a0df411: "python 3.6 byte-compiled",
+		0x0a0df42a: "python 3.7 byte-compiled",
+		0x0a0df455: "python 3.8 byte-compiled",
+		0x0a0df48e: "python 3.9 byte-compiled",
+		0x0a0df4ba: "python 3.10 byte-compiled",
+		0x0a0df4e5: "python 3.11 byte-compiled",
+	}
+
+	// Read magic number (little-endian)
+	magic := readUint32(data[0:4], true)
+
+	if version, exists := magicNumbers[magic]; exists {
+		return version
+	}
+
+	// Check for general Python bytecode pattern if specific version not found
+	// Python bytecode files typically have 'c' at offset 8 and specific patterns
+	if len(data) >= 12 && data[8] == 'c' && data[9] == 0x00 && data[10] == 0x00 && data[11] == 0x00 {
+		return "python byte-compiled"
+	}
+
+	return ""
+}
+
+// parseRPMDetails parses RPM package header and extracts version and architecture information
+func (d *Detector) parseRPMDetails(data []byte) string {
+	if len(data) < 100 {
+		return "data"
+	}
+
+	// RPM file format:
+	// 0-3: Magic number (ed ab ee db)
+	// 4: Major version
+	// 5: Minor version
+	// 6-7: Type (00 00 = binary, 01 00 = source)
+	// 8-9: Architecture
+
+	majorVersion := data[4]
+	minorVersion := data[5]
+	packageType := readUint16(data[6:8], false) // Big-endian
+	archType := readUint16(data[8:10], false)   // Big-endian
+
+	result := fmt.Sprintf("RPM v%d.%d", majorVersion, minorVersion)
+
+	// Package type
+	switch packageType {
+	case 0:
+		result += " bin"
+	case 1:
+		result += " src"
+	default:
+		result += " bin" // Default to binary
+	}
+
+	// Architecture mapping
+	archNames := map[uint16]string{
+		0:  "noarch",
+		1:  "i386",
+		2:  "alpha",
+		3:  "sparc",
+		4:  "mips",
+		5:  "ppc",
+		6:  "m68k",
+		7:  "sgi",
+		8:  "rs6000",
+		9:  "ia64",
+		10: "sparc64",
+		11: "mipsel",
+		12: "arm",
+		13: "m68kmint",
+		14: "s390",
+		15: "s390x",
+		16: "ppc64",
+		17: "sh",
+		18: "xtensa",
+		19: "aarch64",
+		20: "riscv",
+		21: "ppc64le",
+		22: "x86_64",
+	}
+
+	if archName, exists := archNames[archType]; exists {
+		result += " " + archName
+	} else {
+		result += " noarch" // Default
+	}
+
+	return result
+}
+
+// parseBMPDetails parses BMP file header and extracts detailed information
+func (d *Detector) parseBMPDetails(data []byte) string {
+	if len(data) < 54 {
+		return "data"
+	}
+
+	// BMP file header structure:
+	// 0-1: "BM" signature
+	// 2-5: File size (4 bytes, little-endian)
+	// 6-9: Reserved (4 bytes)
+	// 10-13: Offset to image data (4 bytes, little-endian)
+	// 14-17: DIB header size (4 bytes, little-endian)
+	// 18-21: Width (4 bytes, little-endian)
+	// 22-25: Height (4 bytes, little-endian)
+	// 26-27: Number of planes (2 bytes, little-endian)
+	// 28-29: Bits per pixel (2 bytes, little-endian)
+	// 30-33: Compression method (4 bytes, little-endian)
+	// 34-37: Image size (4 bytes, little-endian)
+	// 38-41: Horizontal resolution (4 bytes, little-endian)
+	// 42-45: Vertical resolution (4 bytes, little-endian)
+
+	fileSize := readUint32(data[2:6], true)
+	dataOffset := readUint32(data[10:14], true)
+	dibHeaderSize := readUint32(data[14:18], true)
+	width := readInt32(data[18:22], true)
+	height := readInt32(data[22:26], true)
+	bitsPerPixel := readUint16(data[28:30], true)
+	imageSize := readUint32(data[34:38], true)
+	xPixelsPerMeter := readUint32(data[38:42], true)
+	yPixelsPerMeter := readUint32(data[42:46], true)
+
+	result := "PC bitmap"
+
+	// Determine BMP format based on DIB header size
+	switch dibHeaderSize {
+	case 12:
+		result += ", OS/2 1.x format"
+	case 40:
+		result += ", Windows 3.x format"
+	case 52:
+		result += ", Windows 3.x format"
+	case 56:
+		result += ", Windows NT format"
+	case 108:
+		result += ", Windows 95 format"
+	case 124:
+		result += ", Windows 98 format"
+	default:
+		if dibHeaderSize >= 40 {
+			result += ", Windows 3.x format" // Default for standard header
+		}
+	}
+
+	// Add dimensions and bit depth
+	if height < 0 {
+		height = -height // Top-down DIB
+	}
+	result += fmt.Sprintf(", %d x %d x %d", width, height, bitsPerPixel)
+
+	// Add image size if available
+	if imageSize > 0 {
+		result += fmt.Sprintf(", image size %d", imageSize)
+	}
+
+	// Add resolution if available
+	if xPixelsPerMeter > 0 && yPixelsPerMeter > 0 {
+		result += fmt.Sprintf(", resolution %d x %d px/m", xPixelsPerMeter, yPixelsPerMeter)
+	}
+
+	// Add file size info
+	result += fmt.Sprintf(", cbSize %d", fileSize)
+
+	// Add data offset
+	result += fmt.Sprintf(", bits offset %d", dataOffset)
+
+	return result
+}
+
+// parseICODetails parses ICO/CUR file header and extracts icon information
+func (d *Detector) parseICODetails(data []byte) string {
+	if len(data) < 22 {
+		return "data"
+	}
+
+	// ICO/CUR file header structure:
+	// 0-1: Reserved (always 0)
+	// 2-3: Type (1 = ICO, 2 = CUR)
+	// 4-5: Number of images/icons
+	// For each image (16 bytes each starting at offset 6):
+	// 0: Width (0 = 256)
+	// 1: Height (0 = 256)
+	// 2: Color count (0 = >256 colors)
+	// 3: Reserved (always 0)
+	// 4-5: Color planes (ICO) or hotspot X (CUR)
+	// 6-7: Bits per pixel (ICO) or hotspot Y (CUR)
+	// 8-11: Image data size
+	// 12-15: Image data offset
+
+	fileType := readUint16(data[2:4], true)
+	numImages := readUint16(data[4:6], true)
+
+	var result string
+	if fileType == 1 {
+		result = "MS Windows icon resource"
+	} else if fileType == 2 {
+		result = "MS Windows cursor resource"
+	} else {
+		return "data"
+	}
+
+	// Add number of icons
+	if numImages == 1 {
+		result += " - 1 icon"
+	} else {
+		result += fmt.Sprintf(" - %d icons", numImages)
+	}
+
+	// Parse first image/icon details if available
+	if len(data) >= 22 && numImages > 0 {
+		widthByte := data[6]
+		heightByte := data[7]
+		colorCount := data[8]
+
+		// Width/height of 0 means 256
+		width := int(widthByte)
+		height := int(heightByte)
+		if width == 0 {
+			width = 256
+		}
+		if height == 0 {
+			height = 256
+		}
+
+		result += fmt.Sprintf(", %dx%d", width, height)
+
+		// For cursor files, add hotspot info
+		if fileType == 2 {
+			hotspotX := readUint16(data[10:12], true)
+			hotspotY := readUint16(data[12:14], true)
+			result += fmt.Sprintf(", hotspot @%dx%d", hotspotX, hotspotY)
+		}
+
+		// Add color info for ICO files
+		if fileType == 1 && colorCount > 0 {
+			result += fmt.Sprintf(", %d colors", colorCount)
+		}
+	}
+
+	return result
 }

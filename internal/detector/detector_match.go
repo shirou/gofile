@@ -26,18 +26,18 @@ func (d *Detector) matchByte(data []byte, entry *magic.MagicEntry, fullData []by
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		// Skip entries with corrupted/binary descriptions
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				d.logger.Debug("Skipping entry with corrupted description", 
+				d.logger.Debug("Skipping entry with corrupted description",
 					"description_hex", fmt.Sprintf("%x", []byte(desc)),
 					"match_type", "byte")
 			}
 			return false, ""
 		}
-		
+
 		// If no description available, check if this is a meaningful match
 		if len(desc) == 0 {
 			// Check if Value field has meaningful data (not all zeros)
@@ -48,7 +48,7 @@ func (d *Detector) matchByte(data []byte, entry *magic.MagicEntry, fullData []by
 					break
 				}
 			}
-			
+
 			// Only use fallback if this entry seems to have a meaningful pattern
 			if hasValue {
 				desc = d.getDefaultDescription(fullData, entry)
@@ -57,7 +57,7 @@ func (d *Detector) matchByte(data []byte, entry *magic.MagicEntry, fullData []by
 				return false, ""
 			}
 		}
-		
+
 		return true, desc
 	}
 	return false, ""
@@ -96,17 +96,17 @@ func (d *Detector) matchShort(data []byte, entry *magic.MagicEntry, fullData []b
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
-				d.logger.Debug("Skipping SHORT entry with corrupted description", 
+				d.logger.Debug("Skipping SHORT entry with corrupted description",
 					"description_hex", fmt.Sprintf("%x", []byte(desc)),
 					"match_type", "short")
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -137,9 +137,9 @@ func (d *Detector) matchLong(data []byte, entry *magic.MagicEntry, fullData []by
 	}
 
 	// Get expected value from entry (little endian)
-	expected := uint32(entry.Value[0]) | 
-		uint32(entry.Value[1])<<8 | 
-		uint32(entry.Value[2])<<16 | 
+	expected := uint32(entry.Value[0]) |
+		uint32(entry.Value[1])<<8 |
+		uint32(entry.Value[2])<<16 |
 		uint32(entry.Value[3])<<24
 
 	// Apply mask if specified
@@ -151,7 +151,7 @@ func (d *Detector) matchLong(data []byte, entry *magic.MagicEntry, fullData []by
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -159,7 +159,7 @@ func (d *Detector) matchLong(data []byte, entry *magic.MagicEntry, fullData []by
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -171,14 +171,14 @@ func (d *Detector) matchLong(data []byte, entry *magic.MagicEntry, fullData []by
 // matchString matches string patterns
 func (d *Detector) matchString(data []byte, entry *magic.MagicEntry) (bool, string) {
 	pattern := entry.GetValueAsString()
-	
+
 	if d.options.Debug {
 		d.logger.Debug("String match attempt", "pattern", pattern, "pattern_length", len(pattern))
 		if len(data) >= len(pattern) {
 			d.logger.Debug("Actual data examined", "data", string(data[:len(pattern)]))
 		}
 	}
-	
+
 	if len(pattern) == 0 {
 		return false, ""
 	}
@@ -196,9 +196,9 @@ func (d *Detector) matchString(data []byte, entry *magic.MagicEntry) (bool, stri
 		if d.options.Debug {
 			d.logger.Debug("String match successful")
 		}
-		
+
 		desc := entry.GetDescription()
-		
+
 		// For STRING entries, if description looks like binary data, use MimeType instead
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			// Try MimeType field as description
@@ -215,17 +215,17 @@ func (d *Detector) matchString(data []byte, entry *magic.MagicEntry) (bool, stri
 				return false, ""
 			}
 		}
-		
+
 		// If description is empty, skip this match unless it's a very specific pattern
 		if len(desc) == 0 {
 			// Check if this is a known binary signature that should be accepted
 			// even with empty description (like 7z signature)
 			isKnownBinarySignature := false
-			
+
 			// Check for 7z signature: 37 7a bc af 27 1c
 			if len(pattern) >= 6 {
-				if pattern[0] == 0x37 && pattern[1] == 0x7a && pattern[2] == 0xbc && 
-				   pattern[3] == 0xaf && pattern[4] == 0x27 && pattern[5] == 0x1c {
+				if pattern[0] == 0x37 && pattern[1] == 0x7a && pattern[2] == 0xbc &&
+					pattern[3] == 0xaf && pattern[4] == 0x27 && pattern[5] == 0x1c {
 					isKnownBinarySignature = true
 					// Return a meaningful description for 7z with version info
 					if len(data) >= 8 {
@@ -236,19 +236,19 @@ func (d *Detector) matchString(data []byte, entry *magic.MagicEntry) (bool, stri
 					return true, "7-zip archive data"
 				}
 			}
-			
+
 			// Add other known binary signatures as needed
 			// ZIP signature: 50 4b 03 04 or 50 4b 05 06 or 50 4b 07 08
 			if len(pattern) >= 4 {
-				if pattern[0] == 0x50 && pattern[1] == 0x4b && 
-				   (pattern[2] == 0x03 || pattern[2] == 0x05 || pattern[2] == 0x07) {
+				if pattern[0] == 0x50 && pattern[1] == 0x4b &&
+					(pattern[2] == 0x03 || pattern[2] == 0x05 || pattern[2] == 0x07) {
 					isKnownBinarySignature = true
 					// Use the sophisticated ZIP parser for detailed information
 					zipDesc := d.parseZIPDetails(data)
 					return true, zipDesc
 				}
 			}
-			
+
 			// For other patterns with empty descriptions, skip
 			if !isKnownBinarySignature && len(pattern) >= 3 && !strings.Contains(pattern, "\x00") {
 				if d.options.Debug {
@@ -257,14 +257,14 @@ func (d *Detector) matchString(data []byte, entry *magic.MagicEntry) (bool, stri
 				return false, ""
 			}
 		}
-		
+
 		return true, desc
 	}
-	
+
 	if d.options.Debug {
 		d.logger.Debug("No match found")
 	}
-	
+
 	return false, ""
 }
 
@@ -302,14 +302,14 @@ func (d *Detector) matchIndirectWithDepth(data []byte, entry *magic.MagicEntry, 
 	}
 
 	if d.options.Debug {
-		d.logger.Debug("INDIRECT operation", 
-			"offset", entry.Offset, 
-			"in_offset", entry.InOffset, 
+		d.logger.Debug("INDIRECT operation",
+			"offset", entry.Offset,
+			"in_offset", entry.InOffset,
 			"in_type", entry.InType,
 			"flags", fmt.Sprintf("0x%x", entry.Flag),
 			"depth", depth)
 	}
-	
+
 	// Calculate the base offset considering relative positioning
 	baseOffset := d.calculateBaseOffset(entry, len(data))
 	if baseOffset < 0 || baseOffset >= len(data) {
@@ -332,7 +332,7 @@ func (d *Detector) matchIndirectWithDepth(data []byte, entry *magic.MagicEntry, 
 	targetOffset := d.calculateTargetOffset(pointerValue, entry, baseOffset, len(data))
 	if targetOffset < 0 || targetOffset >= len(data) {
 		if d.options.Debug {
-			d.logger.Debug("INDIRECT: target offset out of range", 
+			d.logger.Debug("INDIRECT: target offset out of range",
 				"target_offset", targetOffset,
 				"pointer_value", pointerValue,
 				"in_offset", entry.InOffset)
@@ -351,7 +351,7 @@ func (d *Detector) matchIndirectWithDepth(data []byte, entry *magic.MagicEntry, 
 	// Now we need to evaluate the pattern at the target offset
 	// Create a new entry representing the evaluation at the indirect location
 	indirectEntry := d.createIndirectEvaluationEntry(entry, targetOffset)
-	
+
 	// Recursively evaluate the pattern at the target location
 	return d.matchIndirectPattern(fullData, indirectEntry, targetOffset, depth+1)
 }
@@ -359,7 +359,7 @@ func (d *Detector) matchIndirectWithDepth(data []byte, entry *magic.MagicEntry, 
 // calculateBaseOffset calculates the base offset considering relative positioning flags
 func (d *Detector) calculateBaseOffset(entry *magic.MagicEntry, dataLen int) int {
 	baseOffset := int(entry.Offset)
-	
+
 	// Handle relative positioning flags
 	if entry.Flag&magic.OFFNEGATIVE != 0 {
 		// Relative to end of file
@@ -368,7 +368,7 @@ func (d *Detector) calculateBaseOffset(entry *magic.MagicEntry, dataLen int) int
 		// Relative to beginning of file (explicit)
 		// baseOffset is already correct
 	}
-	
+
 	return baseOffset
 }
 
@@ -376,13 +376,13 @@ func (d *Detector) calculateBaseOffset(entry *magic.MagicEntry, dataLen int) int
 func (d *Detector) readIndirectPointer(data []byte, entry *magic.MagicEntry) (int64, int, error) {
 	var pointerValue int64
 	var bytesRead int
-	
+
 	// Determine endianness - default to little endian unless specified otherwise
 	isLittleEndian := true // Default to little endian
 	if entry.Flag&magic.LITTLE_ENDIAN != 0 {
 		isLittleEndian = true
 	}
-	
+
 	// Read pointer based on InType (or fall back to assuming 32-bit)
 	switch entry.InType {
 	case magic.FILE_BYTE:
@@ -391,7 +391,7 @@ func (d *Detector) readIndirectPointer(data []byte, entry *magic.MagicEntry) (in
 		}
 		pointerValue = int64(data[0])
 		bytesRead = 1
-		
+
 	case magic.FILE_SHORT, magic.FILE_BESHORT, magic.FILE_LESHORT:
 		if len(data) < 2 {
 			return 0, 0, fmt.Errorf("insufficient data for short pointer")
@@ -402,7 +402,7 @@ func (d *Detector) readIndirectPointer(data []byte, entry *magic.MagicEntry) (in
 			pointerValue = int64(readUint16(data, false))
 		}
 		bytesRead = 2
-		
+
 	case magic.FILE_LONG, magic.FILE_BELONG, magic.FILE_LELONG:
 		if len(data) < 4 {
 			return 0, 0, fmt.Errorf("insufficient data for long pointer")
@@ -413,7 +413,7 @@ func (d *Detector) readIndirectPointer(data []byte, entry *magic.MagicEntry) (in
 			pointerValue = int64(readUint32(data, false))
 		}
 		bytesRead = 4
-		
+
 	case magic.FILE_QUAD, magic.FILE_BEQUAD, magic.FILE_LEQUAD:
 		if len(data) < 8 {
 			return 0, 0, fmt.Errorf("insufficient data for quad pointer")
@@ -424,7 +424,7 @@ func (d *Detector) readIndirectPointer(data []byte, entry *magic.MagicEntry) (in
 			pointerValue = int64(readUint64(data, false))
 		}
 		bytesRead = 8
-		
+
 	default:
 		// Default to 32-bit pointer for unknown types
 		if len(data) < 4 {
@@ -437,14 +437,14 @@ func (d *Detector) readIndirectPointer(data []byte, entry *magic.MagicEntry) (in
 		}
 		bytesRead = 4
 	}
-	
+
 	return pointerValue, bytesRead, nil
 }
 
 // calculateTargetOffset calculates the final target offset from the pointer value
 func (d *Detector) calculateTargetOffset(pointerValue int64, entry *magic.MagicEntry, baseOffset, dataLen int) int {
 	targetOffset := int(pointerValue)
-	
+
 	// Apply InOffset (additional offset)
 	if entry.Flag&magic.OFFADD != 0 {
 		// Add InOffset to the pointer value
@@ -456,13 +456,13 @@ func (d *Detector) calculateTargetOffset(pointerValue int64, entry *magic.MagicE
 		// Simple case: just add InOffset
 		targetOffset += int(entry.InOffset)
 	}
-	
+
 	// Handle relative positioning of target
 	if entry.Flag&magic.OFFNEGATIVE != 0 {
 		// Target relative to end of file
 		targetOffset = dataLen + targetOffset
 	}
-	
+
 	return targetOffset
 }
 
@@ -491,7 +491,7 @@ func (d *Detector) createIndirectEvaluationEntry(original *magic.MagicEntry, tar
 		MimeType:  original.MimeType,
 		Ext:       original.Ext,
 	}
-	
+
 	return entry
 }
 
@@ -501,9 +501,9 @@ func (d *Detector) matchIndirectPattern(data []byte, entry *magic.MagicEntry, ta
 	if targetOffset >= len(data) {
 		return false, ""
 	}
-	
+
 	targetData := data[targetOffset:]
-	
+
 	// Based on the original entry type, evaluate the pattern
 	switch entry.Type {
 	case magic.FILE_BYTE:
@@ -536,14 +536,14 @@ func (d *Detector) matchIndirectPattern(data []byte, entry *magic.MagicEntry, ta
 		if match, result := d.matchString(targetData, entry); match {
 			return match, result
 		}
-		
+
 		// If string match fails, check if we have a valid description
 		desc := entry.GetDescription()
 		if len(desc) > 0 && d.isValidDescription(desc) {
 			return true, desc
 		}
 	}
-	
+
 	return false, ""
 }
 
@@ -566,13 +566,13 @@ func (d *Detector) matchUseWithDepth(data []byte, entry *magic.MagicEntry, fullD
 	// FILE_USE references another magic entry by name
 	// The pattern name is stored in the Value field as a string
 	referenceName := entry.GetValueAsString()
-	
+
 	if d.options.Debug {
-		d.logger.Debug("FILE_USE: looking for reference", 
-			"reference_name", referenceName, 
+		d.logger.Debug("FILE_USE: looking for reference",
+			"reference_name", referenceName,
 			"depth", depth)
 	}
-	
+
 	if len(referenceName) == 0 {
 		if d.options.Debug {
 			d.logger.Debug("FILE_USE: no reference name specified")
@@ -584,14 +584,14 @@ func (d *Detector) matchUseWithDepth(data []byte, entry *magic.MagicEntry, fullD
 		}
 		return false, ""
 	}
-	
+
 	// Look for the referenced magic entry in the database
 	referencedEntry := d.database.FindNamedEntry(referenceName)
 	if referencedEntry == nil {
 		if d.options.Debug {
 			d.logger.Debug("FILE_USE: referenced entry not found", "reference_name", referenceName)
 		}
-		
+
 		// Fallback: check if the current entry has a description
 		desc := entry.GetDescription()
 		if len(desc) > 0 && d.isValidDescription(desc) {
@@ -602,14 +602,14 @@ func (d *Detector) matchUseWithDepth(data []byte, entry *magic.MagicEntry, fullD
 		}
 		return false, ""
 	}
-	
+
 	if d.options.Debug {
-		d.logger.Debug("FILE_USE: found referenced entry", 
+		d.logger.Debug("FILE_USE: found referenced entry",
 			"reference_name", referenceName,
 			"referenced_type", referencedEntry.Type,
 			"referenced_offset", referencedEntry.Offset)
 	}
-	
+
 	// Recursively evaluate the referenced entry
 	return d.evaluateReferencedEntry(data, referencedEntry, fullData, depth+1)
 }
@@ -620,12 +620,12 @@ func (d *Detector) evaluateReferencedEntry(data []byte, entry *magic.MagicEntry,
 	if entry.Type == magic.FILE_USE {
 		return d.matchUseWithDepth(data, entry, fullData, depth)
 	}
-	
+
 	// Check for indirect addressing
 	if entry.Flag&magic.INDIR != 0 {
 		return d.matchIndirectWithDepth(data, entry, fullData, depth)
 	}
-	
+
 	// For direct entries, we need to handle the offset correctly
 	// The referenced entry might have a different offset than the current context
 	var targetData []byte
@@ -635,7 +635,7 @@ func (d *Detector) evaluateReferencedEntry(data []byte, entry *magic.MagicEntry,
 		// If offset is invalid, use the current data
 		targetData = data
 	}
-	
+
 	// Evaluate the referenced entry using the appropriate match function
 	switch entry.Type {
 	case magic.FILE_BYTE:
@@ -679,7 +679,7 @@ func (d *Detector) evaluateReferencedEntry(data []byte, entry *magic.MagicEntry,
 		if match, result := d.matchString(targetData, entry); match {
 			return match, result
 		}
-		
+
 		// Last resort: use the description if available
 		desc := entry.GetDescription()
 		if len(desc) > 0 && d.isValidDescription(desc) {
@@ -689,7 +689,7 @@ func (d *Detector) evaluateReferencedEntry(data []byte, entry *magic.MagicEntry,
 			return true, desc
 		}
 	}
-	
+
 	return false, ""
 }
 
@@ -702,7 +702,7 @@ func (d *Detector) matchCustomType(data []byte, entry *magic.MagicEntry, fullDat
 	return d.matchByte(data, entry, fullData)
 }
 
-// matchBELong matches 32-bit big-endian integer values  
+// matchBELong matches 32-bit big-endian integer values
 func (d *Detector) matchBELong(data []byte, entry *magic.MagicEntry, fullData []byte) (bool, string) {
 	if len(data) < 4 {
 		return false, ""
@@ -710,11 +710,11 @@ func (d *Detector) matchBELong(data []byte, entry *magic.MagicEntry, fullData []
 
 	// Read big-endian 32-bit value from data
 	actual := readUint32(data, false)
-	
+
 	// Get expected value from entry (stored as little-endian in Value field)
-	expected := uint32(entry.Value[0]) | 
-		uint32(entry.Value[1])<<8 | 
-		uint32(entry.Value[2])<<16 | 
+	expected := uint32(entry.Value[0]) |
+		uint32(entry.Value[1])<<8 |
+		uint32(entry.Value[2])<<16 |
 		uint32(entry.Value[3])<<24
 
 	if d.options.Debug {
@@ -730,7 +730,7 @@ func (d *Detector) matchBELong(data []byte, entry *magic.MagicEntry, fullData []
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -738,7 +738,7 @@ func (d *Detector) matchBELong(data []byte, entry *magic.MagicEntry, fullData []
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -755,11 +755,11 @@ func (d *Detector) matchLELong(data []byte, entry *magic.MagicEntry, fullData []
 
 	// Read little-endian 32-bit value from data
 	actual := readUint32(data, true)
-	
+
 	// Get expected value from entry (stored as little-endian in Value field)
-	expected := uint32(entry.Value[0]) | 
-		uint32(entry.Value[1])<<8 | 
-		uint32(entry.Value[2])<<16 | 
+	expected := uint32(entry.Value[0]) |
+		uint32(entry.Value[1])<<8 |
+		uint32(entry.Value[2])<<16 |
 		uint32(entry.Value[3])<<24
 
 	if d.options.Debug {
@@ -792,7 +792,7 @@ func (d *Detector) matchBEShort(data []byte, entry *magic.MagicEntry, fullData [
 
 	// Read big-endian 16-bit value from data
 	actual := readUint16(data, false)
-	
+
 	// Get expected value from entry (stored as little-endian in Value field)
 	expected := uint16(entry.Value[0]) | uint16(entry.Value[1])<<8
 
@@ -809,7 +809,7 @@ func (d *Detector) matchBEShort(data []byte, entry *magic.MagicEntry, fullData [
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -817,7 +817,7 @@ func (d *Detector) matchBEShort(data []byte, entry *magic.MagicEntry, fullData [
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -834,7 +834,7 @@ func (d *Detector) matchLEShort(data []byte, entry *magic.MagicEntry, fullData [
 
 	// Read little-endian 16-bit value from data
 	actual := readUint16(data, true)
-	
+
 	// Get expected value from entry (stored as little-endian in Value field)
 	expected := uint16(entry.Value[0]) | uint16(entry.Value[1])<<8
 
@@ -851,7 +851,7 @@ func (d *Detector) matchLEShort(data []byte, entry *magic.MagicEntry, fullData [
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -859,7 +859,7 @@ func (d *Detector) matchLEShort(data []byte, entry *magic.MagicEntry, fullData [
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -876,7 +876,7 @@ func (d *Detector) matchBEQuad(data []byte, entry *magic.MagicEntry, fullData []
 
 	// Read big-endian 64-bit value from data
 	actual := readUint64(data, false)
-	
+
 	// Get expected value from entry - read as big-endian since this is FILE_BEQUAD
 	expected := readUint64(entry.Value[:8], false)
 
@@ -893,7 +893,7 @@ func (d *Detector) matchBEQuad(data []byte, entry *magic.MagicEntry, fullData []
 	match := compareValues(actual, expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -901,7 +901,7 @@ func (d *Detector) matchBEQuad(data []byte, entry *magic.MagicEntry, fullData []
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -918,7 +918,7 @@ func (d *Detector) matchLEQuad(data []byte, entry *magic.MagicEntry, fullData []
 
 	// Read little-endian 64-bit value from data
 	actual := readUint64(data, true)
-	
+
 	// Get expected value from entry (stored as little-endian in Value field)
 	expected := entry.GetValueAsUint64()
 
@@ -935,7 +935,7 @@ func (d *Detector) matchLEQuad(data []byte, entry *magic.MagicEntry, fullData []
 	match := compareValues(actual, expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -943,7 +943,7 @@ func (d *Detector) matchLEQuad(data []byte, entry *magic.MagicEntry, fullData []
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -957,7 +957,7 @@ func (d *Detector) matchPString(data []byte, entry *magic.MagicEntry) (bool, str
 	if len(data) < 1 {
 		return false, ""
 	}
-	
+
 	// Pascal string format: first byte is length, followed by string data
 	strLen := int(data[0])
 	if len(data) < 1+strLen {
@@ -966,17 +966,17 @@ func (d *Detector) matchPString(data []byte, entry *magic.MagicEntry) (bool, str
 		}
 		return false, ""
 	}
-	
+
 	// Extract the actual string data (skip length byte)
 	actual := string(data[1 : 1+strLen])
-	
+
 	// Get expected pattern from magic entry
 	pattern := entry.GetValueAsString()
-	
+
 	if d.options.Debug {
 		d.logger.Debug("PSTRING match comparison", "pattern", pattern, "pattern_length", len(pattern), "actual", actual, "actual_length", len(actual))
 	}
-	
+
 	if len(pattern) == 0 {
 		return false, ""
 	}
@@ -986,9 +986,9 @@ func (d *Detector) matchPString(data []byte, entry *magic.MagicEntry) (bool, str
 		if d.options.Debug {
 			d.logger.Debug("PSTRING match successful")
 		}
-		
+
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -996,21 +996,21 @@ func (d *Detector) matchPString(data []byte, entry *magic.MagicEntry) (bool, str
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			if d.options.Debug {
 				d.logger.Debug("PSTRING match has no description, skipping")
 			}
 			return false, ""
 		}
-		
+
 		return true, desc
 	}
-	
+
 	if d.options.Debug {
 		d.logger.Debug("PSTRING no match found")
 	}
-	
+
 	return false, ""
 }
 
@@ -1019,7 +1019,7 @@ func (d *Detector) matchGUID(data []byte, entry *magic.MagicEntry) (bool, string
 	if len(data) < 16 {
 		return false, ""
 	}
-	
+
 	// Compare the 16-byte GUID directly with the expected value in entry
 	for i := 0; i < 16; i++ {
 		if i < len(entry.Value) && data[i] != entry.Value[i] {
@@ -1029,7 +1029,7 @@ func (d *Detector) matchGUID(data []byte, entry *magic.MagicEntry) (bool, string
 			return false, ""
 		}
 	}
-	
+
 	if d.options.Debug {
 		// Format GUID for debugging: {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}
 		guid := fmt.Sprintf("{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
@@ -1040,9 +1040,9 @@ func (d *Detector) matchGUID(data []byte, entry *magic.MagicEntry) (bool, string
 			data[10], data[11], data[12], data[13], data[14], data[15])
 		d.logger.Debug("GUID match successful", "guid", guid)
 	}
-	
+
 	desc := entry.GetDescription()
-	
+
 	// Check if description contains only printable characters
 	if len(desc) > 0 && !d.isValidDescription(desc) {
 		if d.options.Debug {
@@ -1050,14 +1050,14 @@ func (d *Detector) matchGUID(data []byte, entry *magic.MagicEntry) (bool, string
 		}
 		return false, ""
 	}
-	
+
 	if len(desc) == 0 {
 		if d.options.Debug {
 			d.logger.Debug("GUID match has no description, skipping")
 		}
 		return false, ""
 	}
-	
+
 	return true, desc
 }
 
@@ -1066,18 +1066,18 @@ func (d *Detector) matchDER(data []byte, entry *magic.MagicEntry) (bool, string)
 	if len(data) < 2 {
 		return false, ""
 	}
-	
+
 	// DER uses ASN.1 Basic Encoding Rules with additional constraints
 	// Format: Tag | Length | Value
 	// Tag byte format: [class(2bits)][constructed(1bit)][tag number(5bits)]
-	
+
 	tag := data[0]
 	lengthByte := data[1]
-	
+
 	if d.options.Debug {
 		d.logger.Debug("DER parsing", "tag", fmt.Sprintf("0x%02x", tag), "length_byte", fmt.Sprintf("0x%02x", lengthByte))
 	}
-	
+
 	// Get expected pattern from magic entry
 	expectedPattern := entry.GetValueAsString()
 	if len(expectedPattern) == 0 {
@@ -1101,7 +1101,7 @@ func (d *Detector) matchDER(data []byte, entry *magic.MagicEntry) (bool, string)
 		if len(data) < len(expectedPattern) {
 			return false, ""
 		}
-		
+
 		actual := string(data[:len(expectedPattern)])
 		if actual != expectedPattern {
 			if d.options.Debug {
@@ -1110,10 +1110,10 @@ func (d *Detector) matchDER(data []byte, entry *magic.MagicEntry) (bool, string)
 			return false, ""
 		}
 	}
-	
+
 	// Basic DER structure validation
 	var totalLength int
-	if lengthByte & 0x80 == 0 {
+	if lengthByte&0x80 == 0 {
 		// Short form: length is in the lower 7 bits
 		totalLength = int(lengthByte)
 	} else {
@@ -1126,19 +1126,19 @@ func (d *Detector) matchDER(data []byte, entry *magic.MagicEntry) (bool, string)
 			}
 			return false, ""
 		}
-		
+
 		totalLength = 0
 		for i := 0; i < lengthOctets; i++ {
 			totalLength = (totalLength << 8) | int(data[2+i])
 		}
 	}
-	
+
 	if d.options.Debug {
 		d.logger.Debug("DER match successful", "tag", fmt.Sprintf("0x%02x", tag), "length", totalLength)
 	}
-	
+
 	desc := entry.GetDescription()
-	
+
 	// Check if description contains only printable characters
 	if len(desc) > 0 && !d.isValidDescription(desc) {
 		if d.options.Debug {
@@ -1146,12 +1146,12 @@ func (d *Detector) matchDER(data []byte, entry *magic.MagicEntry) (bool, string)
 		}
 		return false, ""
 	}
-	
+
 	if len(desc) == 0 {
 		// Provide basic DER description based on tag
 		desc = d.getDERDescription(tag, totalLength)
 	}
-	
+
 	return true, desc
 }
 
@@ -1196,7 +1196,7 @@ func (d *Detector) matchFloat(data []byte, entry *magic.MagicEntry, fullData []b
 
 	// Read 32-bit float value (assumes little-endian by default)
 	actual := readFloat32(data, true)
-	
+
 	// Get expected value from entry (treat as float)
 	expected := entry.GetValueAsFloat64()
 
@@ -1207,7 +1207,7 @@ func (d *Detector) matchFloat(data []byte, entry *magic.MagicEntry, fullData []b
 	match := compareFloats(float64(actual), expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -1215,7 +1215,7 @@ func (d *Detector) matchFloat(data []byte, entry *magic.MagicEntry, fullData []b
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -1232,7 +1232,7 @@ func (d *Detector) matchDouble(data []byte, entry *magic.MagicEntry, fullData []
 
 	// Read 64-bit double value (assumes little-endian by default)
 	actual := readFloat64(data, true)
-	
+
 	// Get expected value from entry
 	expected := entry.GetValueAsFloat64()
 
@@ -1243,7 +1243,7 @@ func (d *Detector) matchDouble(data []byte, entry *magic.MagicEntry, fullData []
 	match := compareFloats(actual, expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -1251,7 +1251,7 @@ func (d *Detector) matchDouble(data []byte, entry *magic.MagicEntry, fullData []
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -1268,7 +1268,7 @@ func (d *Detector) matchBEDate(data []byte, entry *magic.MagicEntry, fullData []
 
 	// Read big-endian 32-bit timestamp
 	actual := readUint32(data, false)
-	
+
 	// Get expected value from entry
 	expected := uint32(entry.GetValueAsUint64())
 
@@ -1285,7 +1285,7 @@ func (d *Detector) matchBEDate(data []byte, entry *magic.MagicEntry, fullData []
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -1293,7 +1293,7 @@ func (d *Detector) matchBEDate(data []byte, entry *magic.MagicEntry, fullData []
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -1310,7 +1310,7 @@ func (d *Detector) matchLEDate(data []byte, entry *magic.MagicEntry, fullData []
 
 	// Read little-endian 32-bit timestamp
 	actual := readUint32(data, true)
-	
+
 	// Get expected value from entry
 	expected := uint32(entry.GetValueAsUint64())
 
@@ -1327,7 +1327,7 @@ func (d *Detector) matchLEDate(data []byte, entry *magic.MagicEntry, fullData []
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -1335,7 +1335,7 @@ func (d *Detector) matchLEDate(data []byte, entry *magic.MagicEntry, fullData []
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -1352,7 +1352,7 @@ func (d *Detector) matchQuad(data []byte, entry *magic.MagicEntry, fullData []by
 
 	// Read 64-bit value with native endianness (little-endian on most platforms)
 	actual := readUint64(data, true)
-	
+
 	// Get expected value from entry
 	expected := entry.GetValueAsUint64()
 
@@ -1369,7 +1369,7 @@ func (d *Detector) matchQuad(data []byte, entry *magic.MagicEntry, fullData []by
 	match := compareValues(actual, expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -1377,7 +1377,7 @@ func (d *Detector) matchQuad(data []byte, entry *magic.MagicEntry, fullData []by
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -1394,7 +1394,7 @@ func (d *Detector) matchBEFloat(data []byte, entry *magic.MagicEntry, fullData [
 
 	// Read 32-bit float value (big-endian)
 	actual := readFloat32(data, false)
-	
+
 	// Get expected value from entry - read as big-endian float32
 	expected := float64(readFloat32(entry.Value[:4], false))
 
@@ -1405,7 +1405,7 @@ func (d *Detector) matchBEFloat(data []byte, entry *magic.MagicEntry, fullData [
 	match := compareFloats(float64(actual), expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -1413,7 +1413,7 @@ func (d *Detector) matchBEFloat(data []byte, entry *magic.MagicEntry, fullData [
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -1430,7 +1430,7 @@ func (d *Detector) matchLEFloat(data []byte, entry *magic.MagicEntry, fullData [
 
 	// Read 32-bit float value (little-endian)
 	actual := readFloat32(data, true)
-	
+
 	// Get expected value from entry - read as little-endian float32
 	expected := float64(readFloat32(entry.Value[:4], true))
 
@@ -1441,7 +1441,7 @@ func (d *Detector) matchLEFloat(data []byte, entry *magic.MagicEntry, fullData [
 	match := compareFloats(float64(actual), expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -1449,7 +1449,7 @@ func (d *Detector) matchLEFloat(data []byte, entry *magic.MagicEntry, fullData [
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -1466,7 +1466,7 @@ func (d *Detector) matchBEDouble(data []byte, entry *magic.MagicEntry, fullData 
 
 	// Read 64-bit double value (big-endian)
 	actual := readFloat64(data, false)
-	
+
 	// Get expected value from entry - read as big-endian double
 	expected := readFloat64(entry.Value[:8], false)
 
@@ -1477,7 +1477,7 @@ func (d *Detector) matchBEDouble(data []byte, entry *magic.MagicEntry, fullData 
 	match := compareFloats(actual, expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -1485,7 +1485,7 @@ func (d *Detector) matchBEDouble(data []byte, entry *magic.MagicEntry, fullData 
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -1502,7 +1502,7 @@ func (d *Detector) matchLEDouble(data []byte, entry *magic.MagicEntry, fullData 
 
 	// Read 64-bit double value (little-endian)
 	actual := readFloat64(data, true)
-	
+
 	// Get expected value from entry - read as little-endian double
 	expected := readFloat64(entry.Value[:8], true)
 
@@ -1513,7 +1513,7 @@ func (d *Detector) matchLEDouble(data []byte, entry *magic.MagicEntry, fullData 
 	match := compareFloats(actual, expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -1521,7 +1521,7 @@ func (d *Detector) matchLEDouble(data []byte, entry *magic.MagicEntry, fullData 
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -1536,11 +1536,11 @@ func (d *Detector) matchRegex(data []byte, entry *magic.MagicEntry) (bool, strin
 	if len(pattern) == 0 {
 		return false, ""
 	}
-	
+
 	if d.options.Debug {
 		d.logger.Debug("REGEX pattern check", "pattern", pattern, "data_length", len(data))
 	}
-	
+
 	// Compile the regular expression
 	regex, err := regexp.Compile(pattern)
 	if err != nil {
@@ -1560,14 +1560,14 @@ func (d *Detector) matchRegex(data []byte, entry *magic.MagicEntry) (bool, strin
 		}
 		return false, ""
 	}
-	
+
 	// Convert data to string for regex matching
 	text := string(data)
-	
+
 	// Apply the regex pattern
 	if regex.MatchString(text) {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -1575,24 +1575,24 @@ func (d *Detector) matchRegex(data []byte, entry *magic.MagicEntry) (bool, strin
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			if d.options.Debug {
 				d.logger.Debug("REGEX match has no description, skipping")
 			}
 			return false, ""
 		}
-		
+
 		if d.options.Debug {
 			d.logger.Debug("REGEX pattern matched", "pattern", pattern)
 		}
 		return true, desc
 	}
-	
+
 	if d.options.Debug {
 		d.logger.Debug("REGEX: pattern no match", "pattern", pattern)
 	}
-	
+
 	return false, ""
 }
 
@@ -1602,15 +1602,15 @@ func (d *Detector) matchSearch(data []byte, entry *magic.MagicEntry, fullData []
 	if len(pattern) == 0 {
 		return false, ""
 	}
-	
+
 	if d.options.Debug {
 		d.logger.Debug("SEARCH operation", "pattern", pattern, "offset", entry.Offset)
 	}
-	
+
 	// Determine search range
 	searchData := fullData
 	startOffset := int(entry.Offset)
-	
+
 	// Use NumMask as search range if specified (common FILE_SEARCH usage)
 	var searchRange int
 	if entry.NumMask > 0 && entry.NumMask < uint64(len(fullData)) {
@@ -1621,7 +1621,7 @@ func (d *Detector) matchSearch(data []byte, entry *magic.MagicEntry, fullData []
 	} else {
 		searchRange = len(fullData)
 	}
-	
+
 	// Adjust search window
 	if startOffset >= 0 && startOffset < len(fullData) {
 		endOffset := startOffset + searchRange
@@ -1633,7 +1633,7 @@ func (d *Detector) matchSearch(data []byte, entry *magic.MagicEntry, fullData []
 			d.logger.Debug("SEARCH: window defined", "start", startOffset, "end", endOffset, "size", len(searchData))
 		}
 	}
-	
+
 	// Perform search
 	found := false
 	if len(pattern) <= len(searchData) {
@@ -1651,10 +1651,10 @@ func (d *Detector) matchSearch(data []byte, entry *magic.MagicEntry, fullData []
 			}
 		}
 	}
-	
+
 	if found {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -1662,20 +1662,20 @@ func (d *Detector) matchSearch(data []byte, entry *magic.MagicEntry, fullData []
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			if d.options.Debug {
 				d.logger.Debug("SEARCH match has no description, skipping")
 			}
 			return false, ""
 		}
-		
+
 		if d.options.Debug {
 			d.logger.Debug("SEARCH: pattern found", "pattern", pattern)
 		}
 		return true, desc
 	}
-	
+
 	return false, ""
 }
 
@@ -1683,14 +1683,14 @@ func (d *Detector) matchSearch(data []byte, entry *magic.MagicEntry, fullData []
 func (d *Detector) matchName(data []byte, entry *magic.MagicEntry) (bool, string) {
 	// FILE_NAME requires filename context which we don't have in this method
 	// However, we can still use the description if it's meaningful
-	
+
 	pattern := entry.GetValueAsString()
 	if d.options.Debug {
 		d.logger.Debug("NAME: pattern check without filename context", "pattern", pattern)
 	}
-	
+
 	desc := entry.GetDescription()
-	
+
 	// Check if description contains only printable characters
 	if len(desc) > 0 && d.isValidDescription(desc) {
 		// For FILE_NAME entries with valid descriptions, we can still return them
@@ -1700,7 +1700,7 @@ func (d *Detector) matchName(data []byte, entry *magic.MagicEntry) (bool, string
 		}
 		return true, desc
 	}
-	
+
 	// Skip FILE_NAME entries without filename context or valid descriptions
 	if d.options.Debug {
 		d.logger.Debug("NAME: skipping (requires filename context)")
@@ -1714,7 +1714,7 @@ func (d *Detector) matchDefault(data []byte, entry *magic.MagicEntry) (bool, str
 	return false, ""
 }
 
-// matchBELDate matches 32-bit big-endian long date values  
+// matchBELDate matches 32-bit big-endian long date values
 func (d *Detector) matchBELDate(data []byte, entry *magic.MagicEntry, fullData []byte) (bool, string) {
 	if len(data) < 4 {
 		return false, ""
@@ -1722,7 +1722,7 @@ func (d *Detector) matchBELDate(data []byte, entry *magic.MagicEntry, fullData [
 
 	// Read big-endian 32-bit timestamp
 	actual := readUint32(data, false)
-	
+
 	// Get expected value from entry
 	expected := uint32(readUint32(entry.Value[:4], false))
 
@@ -1739,7 +1739,7 @@ func (d *Detector) matchBELDate(data []byte, entry *magic.MagicEntry, fullData [
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -1747,7 +1747,7 @@ func (d *Detector) matchBELDate(data []byte, entry *magic.MagicEntry, fullData [
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -1764,7 +1764,7 @@ func (d *Detector) matchLEQDate(data []byte, entry *magic.MagicEntry, fullData [
 
 	// Read little-endian 64-bit timestamp
 	actual := readUint64(data, true)
-	
+
 	// Get expected value from entry - read as little-endian
 	expected := readUint64(entry.Value[:8], true)
 
@@ -1781,7 +1781,7 @@ func (d *Detector) matchLEQDate(data []byte, entry *magic.MagicEntry, fullData [
 	match := compareValues(actual, expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -1789,7 +1789,7 @@ func (d *Detector) matchLEQDate(data []byte, entry *magic.MagicEntry, fullData [
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -1806,7 +1806,7 @@ func (d *Detector) matchBEQDate(data []byte, entry *magic.MagicEntry, fullData [
 
 	// Read big-endian 64-bit timestamp
 	actual := readUint64(data, false)
-	
+
 	// Get expected value from entry - read as big-endian
 	expected := readUint64(entry.Value[:8], false)
 
@@ -1823,7 +1823,7 @@ func (d *Detector) matchBEQDate(data []byte, entry *magic.MagicEntry, fullData [
 	match := compareValues(actual, expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -1831,7 +1831,7 @@ func (d *Detector) matchBEQDate(data []byte, entry *magic.MagicEntry, fullData [
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -1851,7 +1851,7 @@ func (d *Detector) matchBEString16(data []byte, entry *magic.MagicEntry) (bool, 
 	if len(pattern) == 0 {
 		return false, ""
 	}
-	
+
 	if d.options.Debug {
 		d.logger.Debug("BESTRING16 pattern check", "pattern", pattern, "data_length", len(data))
 	}
@@ -1862,12 +1862,12 @@ func (d *Detector) matchBEString16(data []byte, entry *magic.MagicEntry) (bool, 
 	for i := 0; i < len(data)-1; i += 2 {
 		// Read 16-bit character in big-endian format
 		char := uint16(data[i])<<8 | uint16(data[i+1])
-		
+
 		// Stop at null terminator
 		if char == 0 {
 			break
 		}
-		
+
 		// Handle basic ASCII range (0-127)
 		if char <= 127 {
 			text.WriteByte(byte(char))
@@ -1875,19 +1875,19 @@ func (d *Detector) matchBEString16(data []byte, entry *magic.MagicEntry) (bool, 
 			// For non-ASCII, use placeholder or skip
 			text.WriteByte('?')
 		}
-		
+
 		// Limit string length for performance
 		if text.Len() > 256 {
 			break
 		}
 	}
-	
+
 	textStr := text.String()
-	
+
 	// Check if pattern matches the converted string
 	if strings.Contains(textStr, pattern) {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -1895,24 +1895,24 @@ func (d *Detector) matchBEString16(data []byte, entry *magic.MagicEntry) (bool, 
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			if d.options.Debug {
 				d.logger.Debug("BESTRING16 match has no description, skipping")
 			}
 			return false, ""
 		}
-		
+
 		if d.options.Debug {
 			d.logger.Debug("  ✓ BESTRING16 pattern check", "pattern", pattern, "text", textStr)
 		}
 		return true, desc
 	}
-	
+
 	if d.options.Debug {
 		d.logger.Debug("BESTRING16: pattern no match", "pattern", pattern, "text", textStr)
 	}
-	
+
 	return false, ""
 }
 
@@ -1921,12 +1921,12 @@ func (d *Detector) matchClear(data []byte, entry *magic.MagicEntry, fullData []b
 	if d.options.Debug {
 		d.logger.Debug("CLEAR: clearing state flags")
 	}
-	
+
 	// FILE_CLEAR is used to clear flags or reset state in complex magic sequences
 	// For basic implementation, we just continue processing by returning false
 	// In a more advanced implementation, this might clear specific state variables
 	// or flags that affect subsequent magic entry processing
-	
+
 	return false, ""
 }
 
@@ -1938,7 +1938,7 @@ func (d *Detector) matchDate(data []byte, entry *magic.MagicEntry, fullData []by
 
 	// Read 32-bit timestamp with native endianness (little-endian on most platforms)
 	actual := readUint32(data, true)
-	
+
 	// Get expected value from entry
 	expected := uint32(entry.GetValueAsUint64())
 
@@ -1955,7 +1955,7 @@ func (d *Detector) matchDate(data []byte, entry *magic.MagicEntry, fullData []by
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -1963,7 +1963,7 @@ func (d *Detector) matchDate(data []byte, entry *magic.MagicEntry, fullData []by
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -1980,7 +1980,7 @@ func (d *Detector) matchLDate(data []byte, entry *magic.MagicEntry, fullData []b
 
 	// Read 32-bit long date with native endianness
 	actual := readUint32(data, true)
-	
+
 	// Get expected value from entry
 	expected := uint32(entry.GetValueAsUint64())
 
@@ -1997,7 +1997,7 @@ func (d *Detector) matchLDate(data []byte, entry *magic.MagicEntry, fullData []b
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2005,7 +2005,7 @@ func (d *Detector) matchLDate(data []byte, entry *magic.MagicEntry, fullData []b
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2022,7 +2022,7 @@ func (d *Detector) matchLELDate(data []byte, entry *magic.MagicEntry, fullData [
 
 	// Read little-endian 32-bit long date
 	actual := readUint32(data, true)
-	
+
 	// Get expected value from entry
 	expected := uint32(readUint32(entry.Value[:4], true))
 
@@ -2039,7 +2039,7 @@ func (d *Detector) matchLELDate(data []byte, entry *magic.MagicEntry, fullData [
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2047,7 +2047,7 @@ func (d *Detector) matchLELDate(data []byte, entry *magic.MagicEntry, fullData [
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2064,7 +2064,7 @@ func (d *Detector) matchQDate(data []byte, entry *magic.MagicEntry, fullData []b
 
 	// Read 64-bit quad date with native endianness
 	actual := readUint64(data, true)
-	
+
 	// Get expected value from entry
 	expected := entry.GetValueAsUint64()
 
@@ -2081,7 +2081,7 @@ func (d *Detector) matchQDate(data []byte, entry *magic.MagicEntry, fullData []b
 	match := compareValues(actual, expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2089,7 +2089,7 @@ func (d *Detector) matchQDate(data []byte, entry *magic.MagicEntry, fullData []b
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2106,7 +2106,7 @@ func (d *Detector) matchQLDate(data []byte, entry *magic.MagicEntry, fullData []
 
 	// Read 64-bit quad long date with native endianness
 	actual := readUint64(data, true)
-	
+
 	// Get expected value from entry
 	expected := entry.GetValueAsUint64()
 
@@ -2123,7 +2123,7 @@ func (d *Detector) matchQLDate(data []byte, entry *magic.MagicEntry, fullData []
 	match := compareValues(actual, expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2131,7 +2131,7 @@ func (d *Detector) matchQLDate(data []byte, entry *magic.MagicEntry, fullData []
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2148,7 +2148,7 @@ func (d *Detector) matchLEQLDate(data []byte, entry *magic.MagicEntry, fullData 
 
 	// Read little-endian 64-bit quad long date
 	actual := readUint64(data, true)
-	
+
 	// Get expected value from entry - read as little-endian
 	expected := readUint64(entry.Value[:8], true)
 
@@ -2165,7 +2165,7 @@ func (d *Detector) matchLEQLDate(data []byte, entry *magic.MagicEntry, fullData 
 	match := compareValues(actual, expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2173,7 +2173,7 @@ func (d *Detector) matchLEQLDate(data []byte, entry *magic.MagicEntry, fullData 
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2190,7 +2190,7 @@ func (d *Detector) matchBEQLDate(data []byte, entry *magic.MagicEntry, fullData 
 
 	// Read big-endian 64-bit quad long date
 	actual := readUint64(data, false)
-	
+
 	// Get expected value from entry - read as big-endian
 	expected := readUint64(entry.Value[:8], false)
 
@@ -2207,7 +2207,7 @@ func (d *Detector) matchBEQLDate(data []byte, entry *magic.MagicEntry, fullData 
 	match := compareValues(actual, expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2215,7 +2215,7 @@ func (d *Detector) matchBEQLDate(data []byte, entry *magic.MagicEntry, fullData 
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2232,7 +2232,7 @@ func (d *Detector) matchMSDOSDate(data []byte, entry *magic.MagicEntry, fullData
 
 	// MS-DOS date format: bits 15-9 = year-1980, bits 8-5 = month, bits 4-0 = day
 	actual := readUint16(data, true) // Little-endian by default for MS-DOS
-	
+
 	// Get expected value from entry
 	expected := uint16(entry.GetValueAsUint64())
 
@@ -2253,7 +2253,7 @@ func (d *Detector) matchMSDOSDate(data []byte, entry *magic.MagicEntry, fullData
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2261,7 +2261,7 @@ func (d *Detector) matchMSDOSDate(data []byte, entry *magic.MagicEntry, fullData
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2278,7 +2278,7 @@ func (d *Detector) matchLEMSDOSDate(data []byte, entry *magic.MagicEntry, fullDa
 
 	// Read little-endian MS-DOS date
 	actual := readUint16(data, true)
-	
+
 	// Get expected value from entry
 	expected := uint16(readUint16(entry.Value[:2], true))
 
@@ -2295,7 +2295,7 @@ func (d *Detector) matchLEMSDOSDate(data []byte, entry *magic.MagicEntry, fullDa
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2303,7 +2303,7 @@ func (d *Detector) matchLEMSDOSDate(data []byte, entry *magic.MagicEntry, fullDa
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2320,7 +2320,7 @@ func (d *Detector) matchBEMSDOSDate(data []byte, entry *magic.MagicEntry, fullDa
 
 	// Read big-endian MS-DOS date
 	actual := readUint16(data, false)
-	
+
 	// Get expected value from entry
 	expected := uint16(readUint16(entry.Value[:2], false))
 
@@ -2337,7 +2337,7 @@ func (d *Detector) matchBEMSDOSDate(data []byte, entry *magic.MagicEntry, fullDa
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2345,7 +2345,7 @@ func (d *Detector) matchBEMSDOSDate(data []byte, entry *magic.MagicEntry, fullDa
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2362,7 +2362,7 @@ func (d *Detector) matchMSDOSTime(data []byte, entry *magic.MagicEntry, fullData
 
 	// MS-DOS time format: bits 15-11 = hour, bits 10-5 = minute, bits 4-0 = second/2
 	actual := readUint16(data, true) // Little-endian by default for MS-DOS
-	
+
 	// Get expected value from entry
 	expected := uint16(entry.GetValueAsUint64())
 
@@ -2383,7 +2383,7 @@ func (d *Detector) matchMSDOSTime(data []byte, entry *magic.MagicEntry, fullData
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2391,7 +2391,7 @@ func (d *Detector) matchMSDOSTime(data []byte, entry *magic.MagicEntry, fullData
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2408,7 +2408,7 @@ func (d *Detector) matchLEMSDOSTime(data []byte, entry *magic.MagicEntry, fullDa
 
 	// Read little-endian MS-DOS time
 	actual := readUint16(data, true)
-	
+
 	// Get expected value from entry
 	expected := uint16(readUint16(entry.Value[:2], true))
 
@@ -2425,7 +2425,7 @@ func (d *Detector) matchLEMSDOSTime(data []byte, entry *magic.MagicEntry, fullDa
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2433,7 +2433,7 @@ func (d *Detector) matchLEMSDOSTime(data []byte, entry *magic.MagicEntry, fullDa
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2450,7 +2450,7 @@ func (d *Detector) matchBEMSDOSTime(data []byte, entry *magic.MagicEntry, fullDa
 
 	// Read big-endian MS-DOS time
 	actual := readUint16(data, false)
-	
+
 	// Get expected value from entry
 	expected := uint16(readUint16(entry.Value[:2], false))
 
@@ -2467,7 +2467,7 @@ func (d *Detector) matchBEMSDOSTime(data []byte, entry *magic.MagicEntry, fullDa
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2475,7 +2475,7 @@ func (d *Detector) matchBEMSDOSTime(data []byte, entry *magic.MagicEntry, fullDa
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2492,7 +2492,7 @@ func (d *Detector) matchOctal(data []byte, entry *magic.MagicEntry, fullData []b
 
 	// Read octal value as 32-bit integer
 	actual := readUint32(data, true)
-	
+
 	// Get expected value from entry
 	expected := uint32(entry.GetValueAsUint64())
 
@@ -2509,7 +2509,7 @@ func (d *Detector) matchOctal(data []byte, entry *magic.MagicEntry, fullData []b
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2517,7 +2517,7 @@ func (d *Detector) matchOctal(data []byte, entry *magic.MagicEntry, fullData []b
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2534,7 +2534,7 @@ func (d *Detector) matchMEDate(data []byte, entry *magic.MagicEntry, fullData []
 
 	// Middle-endian: byte order 2,3,0,1 (pdp-11 style)
 	actual := uint32(data[2]) | uint32(data[3])<<8 | uint32(data[0])<<16 | uint32(data[1])<<24
-	
+
 	// Get expected value from entry
 	expected := uint32(entry.GetValueAsUint64())
 
@@ -2551,7 +2551,7 @@ func (d *Detector) matchMEDate(data []byte, entry *magic.MagicEntry, fullData []
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2559,7 +2559,7 @@ func (d *Detector) matchMEDate(data []byte, entry *magic.MagicEntry, fullData []
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2576,7 +2576,7 @@ func (d *Detector) matchMELDate(data []byte, entry *magic.MagicEntry, fullData [
 
 	// Middle-endian long date
 	actual := uint32(data[2]) | uint32(data[3])<<8 | uint32(data[0])<<16 | uint32(data[1])<<24
-	
+
 	// Get expected value from entry
 	expected := uint32(entry.GetValueAsUint64())
 
@@ -2593,7 +2593,7 @@ func (d *Detector) matchMELDate(data []byte, entry *magic.MagicEntry, fullData [
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2601,7 +2601,7 @@ func (d *Detector) matchMELDate(data []byte, entry *magic.MagicEntry, fullData [
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2618,7 +2618,7 @@ func (d *Detector) matchMELong(data []byte, entry *magic.MagicEntry, fullData []
 
 	// Middle-endian: byte order 2,3,0,1
 	actual := uint32(data[2]) | uint32(data[3])<<8 | uint32(data[0])<<16 | uint32(data[1])<<24
-	
+
 	// Get expected value from entry
 	expected := uint32(entry.GetValueAsUint64())
 
@@ -2635,7 +2635,7 @@ func (d *Detector) matchMELong(data []byte, entry *magic.MagicEntry, fullData []
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2643,7 +2643,7 @@ func (d *Detector) matchMELong(data []byte, entry *magic.MagicEntry, fullData []
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2660,7 +2660,7 @@ func (d *Detector) matchQWDate(data []byte, entry *magic.MagicEntry, fullData []
 
 	// Read 64-bit quad word date with native endianness
 	actual := readUint64(data, true)
-	
+
 	// Get expected value from entry
 	expected := entry.GetValueAsUint64()
 
@@ -2677,7 +2677,7 @@ func (d *Detector) matchQWDate(data []byte, entry *magic.MagicEntry, fullData []
 	match := compareValues(actual, expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2685,7 +2685,7 @@ func (d *Detector) matchQWDate(data []byte, entry *magic.MagicEntry, fullData []
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2702,7 +2702,7 @@ func (d *Detector) matchLEQWDate(data []byte, entry *magic.MagicEntry, fullData 
 
 	// Read little-endian 64-bit quad word date
 	actual := readUint64(data, true)
-	
+
 	// Get expected value from entry - read as little-endian
 	expected := readUint64(entry.Value[:8], true)
 
@@ -2719,7 +2719,7 @@ func (d *Detector) matchLEQWDate(data []byte, entry *magic.MagicEntry, fullData 
 	match := compareValues(actual, expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2727,7 +2727,7 @@ func (d *Detector) matchLEQWDate(data []byte, entry *magic.MagicEntry, fullData 
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2744,7 +2744,7 @@ func (d *Detector) matchBEQWDate(data []byte, entry *magic.MagicEntry, fullData 
 
 	// Read big-endian 64-bit quad word date
 	actual := readUint64(data, false)
-	
+
 	// Get expected value from entry - read as big-endian
 	expected := readUint64(entry.Value[:8], false)
 
@@ -2761,7 +2761,7 @@ func (d *Detector) matchBEQWDate(data []byte, entry *magic.MagicEntry, fullData 
 	match := compareValues(actual, expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2769,7 +2769,7 @@ func (d *Detector) matchBEQWDate(data []byte, entry *magic.MagicEntry, fullData 
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2786,7 +2786,7 @@ func (d *Detector) matchBEID3(data []byte, entry *magic.MagicEntry, fullData []b
 
 	// ID3 tags are typically 4-byte identifiers in big-endian format
 	actual := readUint32(data, false)
-	
+
 	// Get expected value from entry
 	expected := uint32(readUint32(entry.Value[:4], false))
 
@@ -2805,7 +2805,7 @@ func (d *Detector) matchBEID3(data []byte, entry *magic.MagicEntry, fullData []b
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2813,7 +2813,7 @@ func (d *Detector) matchBEID3(data []byte, entry *magic.MagicEntry, fullData []b
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2830,7 +2830,7 @@ func (d *Detector) matchLEID3(data []byte, entry *magic.MagicEntry, fullData []b
 
 	// ID3 tags in little-endian format
 	actual := readUint32(data, true)
-	
+
 	// Get expected value from entry
 	expected := uint32(readUint32(entry.Value[:4], true))
 
@@ -2849,7 +2849,7 @@ func (d *Detector) matchLEID3(data []byte, entry *magic.MagicEntry, fullData []b
 	match := compareValues(uint64(actual), uint64(expected), entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2857,7 +2857,7 @@ func (d *Detector) matchLEID3(data []byte, entry *magic.MagicEntry, fullData []b
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2875,27 +2875,27 @@ func (d *Detector) matchBEVarInt(data []byte, entry *magic.MagicEntry, fullData 
 	// Variable-length integer decoding (LEB128-style, big-endian)
 	var actual uint64
 	bytesRead := 0
-	
+
 	for i, b := range data {
 		if i >= 8 { // Limit to 8 bytes max
 			break
 		}
-		
+
 		// In big-endian varint, MSB indicates continuation
 		actual = (actual << 7) | uint64(b&0x7F)
 		bytesRead++
-		
+
 		// If MSB is 0, this is the last byte
 		if b&0x80 == 0 {
 			break
 		}
-		
+
 		// Prevent infinite loop with malformed data
 		if bytesRead >= len(data) {
 			break
 		}
 	}
-	
+
 	// Get expected value from entry
 	expected := entry.GetValueAsUint64()
 
@@ -2912,7 +2912,7 @@ func (d *Detector) matchBEVarInt(data []byte, entry *magic.MagicEntry, fullData 
 	match := compareValues(actual, expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2920,7 +2920,7 @@ func (d *Detector) matchBEVarInt(data []byte, entry *magic.MagicEntry, fullData 
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}
@@ -2938,27 +2938,27 @@ func (d *Detector) matchLEVarInt(data []byte, entry *magic.MagicEntry, fullData 
 	// Variable-length integer decoding (LEB128-style, little-endian)
 	var actual uint64
 	bytesRead := 0
-	
+
 	for i, b := range data {
 		if i >= 8 { // Limit to 8 bytes max
 			break
 		}
-		
+
 		// In little-endian varint, LSBs come first
 		actual |= uint64(b&0x7F) << (i * 7)
 		bytesRead++
-		
+
 		// If MSB is 0, this is the last byte
 		if b&0x80 == 0 {
 			break
 		}
-		
+
 		// Prevent infinite loop with malformed data
 		if bytesRead >= len(data) {
 			break
 		}
 	}
-	
+
 	// Get expected value from entry
 	expected := entry.GetValueAsUint64()
 
@@ -2975,7 +2975,7 @@ func (d *Detector) matchLEVarInt(data []byte, entry *magic.MagicEntry, fullData 
 	match := compareValues(actual, expected, entry.Reln)
 	if match {
 		desc := entry.GetDescription()
-		
+
 		// Check if description contains only printable characters
 		if len(desc) > 0 && !d.isValidDescription(desc) {
 			if d.options.Debug {
@@ -2983,7 +2983,7 @@ func (d *Detector) matchLEVarInt(data []byte, entry *magic.MagicEntry, fullData 
 			}
 			return false, ""
 		}
-		
+
 		if len(desc) == 0 {
 			desc = d.getDefaultDescription(fullData, entry)
 		}

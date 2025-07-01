@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"unsafe"
 )
 
 // Parser handles parsing of magic.mgc files
@@ -39,7 +38,8 @@ func (p *Parser) Parse(r io.Reader) (*MagicDatabase, error) {
 		return nil, fmt.Errorf("failed to read magic data: %w", err)
 	}
 
-	if len(data) < int(unsafe.Sizeof(MagicHeader{})) {
+	const headerSize = 16 // Magic (4) + Version (4) + NMagic[2] (8)
+	if len(data) < headerSize {
 		return nil, fmt.Errorf("magic file too small: %d bytes", len(data))
 	}
 
@@ -59,7 +59,7 @@ func (p *Parser) Parse(r io.Reader) (*MagicDatabase, error) {
 	// Magic files can have different struct sizes depending on version
 	// Use a more conservative estimate - each entry needs at least 320 bytes
 	minExpectedSize := totalEntries * 320
-	
+
 	if uint32(len(data)) < minExpectedSize {
 		return nil, fmt.Errorf("file too small: expected at least %d, got %d", minExpectedSize, len(data))
 	}
@@ -77,14 +77,14 @@ func (p *Parser) Parse(r io.Reader) (*MagicDatabase, error) {
 	} else {
 		actualEntrySize = 376 // Version 18-19
 	}
-	
+
 	// Data starts at offset 376 based on analysis
 	actualDataStart := uint32(376) // Correct offset found through analysis
-	
+
 	offset := actualDataStart
 	for set := 0; set < MAGIC_SETS; set++ {
 		db.Magic[set] = make([]*MagicEntry, header.NMagic[set])
-		
+
 		for i := uint32(0); i < header.NMagic[set]; i++ {
 			if offset+actualEntrySize > uint32(len(data)) {
 				return nil, fmt.Errorf("unexpected end of file while parsing entries")
@@ -94,6 +94,9 @@ func (p *Parser) Parse(r io.Reader) (*MagicDatabase, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse entry %d in set %d: %w", i, set, err)
 			}
+
+			// Calculate strength for this entry (after parsing is complete)
+			entry.Strength = p.calculateStrength(entry)
 
 			db.Magic[set][i] = entry
 			offset += actualEntrySize
@@ -105,7 +108,8 @@ func (p *Parser) Parse(r io.Reader) (*MagicDatabase, error) {
 
 // parseHeader parses the magic file header
 func (p *Parser) parseHeader(data []byte) (*MagicHeader, error) {
-	if len(data) < int(unsafe.Sizeof(MagicHeader{})) {
+	const headerSize = 16 // Magic (4) + Version (4) + NMagic[2] (8)
+	if len(data) < headerSize {
 		return nil, fmt.Errorf("insufficient data for header")
 	}
 
@@ -127,7 +131,7 @@ func (p *Parser) parseHeader(data []byte) (*MagicHeader, error) {
 
 	// Check version
 	if header.Version < MIN_VERSION || header.Version > VERSIONNO {
-		return nil, fmt.Errorf("unsupported version: %d (supported range: %d-%d)", 
+		return nil, fmt.Errorf("unsupported version: %d (supported range: %d-%d)",
 			header.Version, MIN_VERSION, VERSIONNO)
 	}
 
@@ -140,75 +144,77 @@ func (p *Parser) parseHeader(data []byte) (*MagicHeader, error) {
 	return header, nil
 }
 
-// parseEntry parses a single magic entry
+// parseEntry parses a single magic entry according to the official C struct layout
 func (p *Parser) parseEntry(data []byte) (*MagicEntry, error) {
-	if len(data) < int(unsafe.Sizeof(MagicEntry{})) {
+	// The binary size is 376 bytes for v18, not including computed fields like Strength
+	const binarySize = 376
+	if len(data) < binarySize {
 		return nil, fmt.Errorf("insufficient data for magic entry")
 	}
 
 	entry := &MagicEntry{}
 
-	// Parse fields according to byte order
+	// Parse fields according to official struct magic layout from file.h
 	offset := 0
 
-	// Word 1 (4 bytes)
+	// Word 1 (4 bytes): flag, cont_level, factor
 	entry.Flag = p.byteOrder.Uint16(data[offset : offset+2])
 	entry.ContLevel = data[offset+2]
 	entry.Factor = data[offset+3]
 	offset += 4
 
-	// Word 2 (4 bytes)
+	// Word 2 (4 bytes): reln, vallen, type, in_type
 	entry.Reln = data[offset]
 	entry.Vallen = data[offset+1]
 	entry.Type = data[offset+2]
 	entry.InType = data[offset+3]
 	offset += 4
 
-	// Word 3 (4 bytes)
+	// Word 3 (4 bytes): in_op, mask_op, cond, factor_op
 	entry.InOp = data[offset]
 	entry.MaskOp = data[offset+1]
 	entry.Cond = data[offset+2]
 	entry.FactorOp = data[offset+3]
 	offset += 4
 
-	// Word 4 (4 bytes)
+	// Word 4 (4 bytes): offset
 	entry.Offset = int32(p.byteOrder.Uint32(data[offset : offset+4]))
 	offset += 4
 
-	// Word 5 (4 bytes)
+	// Word 5 (4 bytes): in_offset
 	entry.InOffset = int32(p.byteOrder.Uint32(data[offset : offset+4]))
 	offset += 4
 
-	// Word 6 (4 bytes)
+	// Word 6 (4 bytes): lineno
 	entry.Lineno = p.byteOrder.Uint32(data[offset : offset+4])
 	offset += 4
 
-	// Word 7-8 (8 bytes) - Union field (NumMask for all types)
+	// Word 7-8 (8 bytes): union _u (num_mask or str_range/str_flags)
 	entry.NumMask = p.byteOrder.Uint64(data[offset : offset+8])
 	offset += 8
 
-	// Value at offset 32 (96 bytes for v18) - CORRECTED ORDER!
-	copy(entry.Value[:], data[offset:offset+96])
+	// Words 9-24 (128 bytes): union VALUETYPE value
+	copy(entry.Value[:], data[offset:offset+128])
 	// Convert multi-byte values according to byte order if needed
 	if !entry.IsString() {
 		p.convertValueByteOrder(entry)
 	}
-	offset += 96
+	offset += 128
 
-	// Description at offset 128 (64 bytes)
+	// Words 25-40 (64 bytes): char desc[MAXDESC]
 	copy(entry.Desc[:], data[offset:offset+MAXDESC])
 	offset += MAXDESC
 
-	// MIME type at offset 192 (80 bytes)
+	// Words 41-60 (80 bytes): char mimetype[MAXMIME]
 	copy(entry.MimeType[:], data[offset:offset+MAXMIME])
 	offset += MAXMIME
 
-	// Apple at offset 272 (8 bytes)
+	// Words 61-62 (8 bytes): char apple[8]
 	copy(entry.Apple[:], data[offset:offset+8])
 	offset += 8
 
-	// Extensions at offset 280 (96 bytes for v18)
-	copy(entry.Ext[:], data[offset:offset+MAXEXT])
+	// Words 63-78 (64 bytes): char ext[MAXEXT] (raised from 64 for v18)
+	copy(entry.Ext[:], data[offset:offset+64])
 
 	return entry, nil
 }
@@ -230,7 +236,7 @@ func (p *Parser) convertValueByteOrder(entry *MagicEntry) {
 			}
 		}
 	case FILE_LONG, FILE_BELONG, FILE_LELONG, FILE_DATE, FILE_BEDATE, FILE_LEDATE,
-		 FILE_LDATE, FILE_BELDATE, FILE_LELDATE, FILE_MEDATE, FILE_MELDATE, FILE_MELONG:
+		FILE_LDATE, FILE_BELDATE, FILE_LELDATE, FILE_MEDATE, FILE_MELDATE, FILE_MELONG:
 		// 32-bit values
 		for i := 0; i < len(entry.Value); i += 4 {
 			if i+3 < len(entry.Value) {
@@ -239,7 +245,7 @@ func (p *Parser) convertValueByteOrder(entry *MagicEntry) {
 			}
 		}
 	case FILE_QUAD, FILE_LEQUAD, FILE_BEQUAD, FILE_QDATE, FILE_LEQDATE, FILE_BEQDATE,
-		 FILE_QLDATE, FILE_LEQLDATE, FILE_BEQLDATE, FILE_QWDATE, FILE_LEQWDATE, FILE_BEQWDATE:
+		FILE_QLDATE, FILE_LEQLDATE, FILE_BEQLDATE, FILE_QWDATE, FILE_LEQWDATE, FILE_BEQWDATE:
 		// 64-bit values
 		for i := 0; i < len(entry.Value); i += 8 {
 			if i+7 < len(entry.Value) {
@@ -269,7 +275,7 @@ func (p *Parser) convertValueByteOrder(entry *MagicEntry) {
 // swapUint32 swaps the byte order of a uint32
 func swapUint32(val uint32) uint32 {
 	return ((val & 0xFF) << 24) |
-		   ((val & 0xFF00) << 8) |
-		   ((val & 0xFF0000) >> 8) |
-		   ((val & 0xFF000000) >> 24)
+		((val & 0xFF00) << 8) |
+		((val & 0xFF0000) >> 8) |
+		((val & 0xFF000000) >> 24)
 }

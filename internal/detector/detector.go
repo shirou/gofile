@@ -14,7 +14,8 @@ import (
 // DatabaseInterface defines the interface for magic databases
 type DatabaseInterface interface {
 	GetEntries() []*magic.MagicEntry
-	FindNamedEntry(name string) *magic.MagicEntry // For FILE_USE resolution
+	GetEntriesSortedByStrength() []*magic.MagicEntry // Get entries sorted by strength
+	FindNamedEntry(name string) *magic.MagicEntry    // For FILE_USE resolution
 }
 
 // Detector handles file type detection using magic patterns
@@ -46,7 +47,7 @@ func New(db DatabaseInterface, opts *Options) *Detector {
 	if opts == nil {
 		opts = DefaultOptions()
 	}
-	
+
 	// Configure logger based on debug mode
 	var logger *slog.Logger
 	if opts.Debug {
@@ -58,7 +59,7 @@ func New(db DatabaseInterface, opts *Options) *Detector {
 			Level: slog.LevelInfo,
 		}))
 	}
-	
+
 	return &Detector{
 		database: db,
 		options:  opts,
@@ -92,7 +93,7 @@ func (d *Detector) DetectFile(path string) (string, error) {
 
 	if d.options.Debug {
 		stat, _ := file.Stat()
-		d.logger.Debug("DetectFile: Opened file", 
+		d.logger.Debug("DetectFile: Opened file",
 			"path", path,
 			"size", stat.Size())
 	}
@@ -128,7 +129,7 @@ func (d *Detector) DetectReader(reader io.Reader) (string, error) {
 	return d.DetectBytes(buffer)
 }
 
-// DetectBytes detects the file type from a byte slice
+// DetectBytes detects the file type from a byte slice using strength-based priority
 func (d *Detector) DetectBytes(data []byte) (string, error) {
 	if len(data) == 0 {
 		if d.options.Debug {
@@ -141,11 +142,11 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 		d.logger.Debug("DetectBytes: Processing data", "bytes", len(data))
 	}
 
-	// Get all magic entries from database
-	entries := d.database.GetEntries()
+	// Get all magic entries sorted by strength (descending)
+	entries := d.database.GetEntriesSortedByStrength()
 
 	if d.options.Debug {
-		d.logger.Debug("=== Starting detection ===",
+		d.logger.Debug("=== Starting strength-based detection ===",
 			"data_bytes", len(data),
 			"first_32_bytes", hex.EncodeToString(data[:min(32, len(data))]),
 			"total_entries", len(entries))
@@ -155,215 +156,70 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 		return "data (no magic entries loaded)", nil
 	}
 
-	// Try to match against each magic entry with priority ordering
+	// Single pass through strength-sorted entries
 	matchAttempts := 0
-
-	// Pre-pass: Check for high-level continuation entries with specific binary patterns
-	// This runs before all other checks to ensure 7z and similar formats are detected first
 	for i, entry := range entries {
-		if entry.Offset != 0 {
+		matchAttempts++
+
+		// Skip entries with offsets beyond our data
+		if entry.Offset >= int32(len(data)) {
 			continue
 		}
-		
-		if entry.ContLevel >= 16 && entry.ContLevel <= 64 && entry.Type == magic.FILE_STRING {
-			desc := entry.GetDescription()
-			if len(strings.TrimSpace(desc)) == 0 {
-				// Check if this has a known binary signature pattern
-				if d.hasKnownBinaryPattern(entry) {
-					if d.options.Debug {
-						d.logger.Debug("PRE-PASS HIGH-PRIORITY: Testing binary pattern with empty description",
-							"index", i,
-							"cont_level", entry.ContLevel)
-					}
-					
-					if match, result := d.matchEntry(data, entry, data); match {
-						if d.options.Debug {
-							d.logger.Debug("✓ PRE-PASS HIGH-PRIORITY MATCH",
-								"entry", i,
-								"result", result,
-								"result_length", len(result))
-						}
-						
-						finalResult := d.enhanceDeepNestedResult(data, entries, i, result)
-						
-						if d.options.Debug {
-							d.logger.Debug("PRE-PASS: After enhancement",
-								"entry", i,
-								"final_result", finalResult,
-								"is_valid", d.isValidDescription(finalResult))
-						}
-						
-						if len(strings.TrimSpace(finalResult)) > 0 && d.isValidDescription(finalResult) {
-							if d.options.Debug {
-								d.logger.Debug("PRE-PASS: Returning successful result",
-									"entry", i,
-									"final_result", finalResult)
-							}
-							return d.formatResult(finalResult), nil
-						}
-					} else {
-						// Debug why it didn't match
-						if i == 4643 && d.options.Debug {
-							d.logger.Debug("PRE-PASS: Entry 4643 did not match - investigating",
-								"entry", i,
-								"has_known_pattern", d.hasKnownBinaryPattern(entry))
-							
-							// Try the match manually to see what happens
-							testMatch, testResult := d.matchEntry(data, entry, data)
-							d.logger.Debug("PRE-PASS: Manual match test for 4643",
-								"match", testMatch,
-								"result", testResult)
-						}
-					}
-				}
-			}
-		}
-	}
 
-	// First pass: Specific binary signatures at offset 0 with continuation support
-	for i, entry := range entries {
-		if entry.Offset != 0 {
-			continue
-		}
-		
-		// Debug entry 4643 specifically
-		if i == 4643 && d.options.Debug {
-			d.logger.Debug("FIRST-PASS: Examining entry 4643",
+		if d.options.Debug && matchAttempts <= 20 {
+			d.logger.Debug("Testing entry",
 				"index", i,
+				"strength", entry.Strength,
 				"type", entry.Type,
-				"cont_level", entry.ContLevel,
 				"offset", entry.Offset,
-				"has_pattern", d.hasPatternMatch(entry),
-				"is_specific_binary", d.isSpecificBinarySignature(entry),
-				"description", entry.GetDescription())
+				"cont_level", entry.ContLevel,
+				"desc", entry.GetDescription())
 		}
-		
-		// Process specific binary signatures (including binary strings)
-		if d.isSpecificBinarySignature(entry) {
-			if match, result := d.matchEntry(data, entry, data); match {
-				if d.options.Debug {
-					d.logger.Debug("✓ SPECIFIC-BINARY MATCH",
-						"entry", i,
-						"result", result)
-				}
-				
-				// Skip matches with empty results to continue searching
-				if len(strings.TrimSpace(result)) == 0 {
-					if d.options.Debug {
-						d.logger.Debug("  Skipping empty result, continuing search...")
-					}
-					continue
-				}
 
-				// Additional validation before accepting result
-				if !d.isValidDescription(result) {
-					if d.options.Debug {
-						d.logger.Debug("  Skipping invalid description", "hex", hex.EncodeToString([]byte(result)))
-					}
-					continue
-				}
-
-				return d.formatResult(result), nil
-			}
-		}
-		
-		// Check for continuation sequences even if the parent has empty description
+		// Handle continuation sequences
 		if d.isContinuationCandidate(entry, entries, i) {
-			if d.options.Debug {
-				d.logger.Debug("CONTINUATION: Testing continuation sequence",
-					"parent_index", i,
-					"parent_cont_level", entry.ContLevel)
-			}
-			
 			if match, result := d.evaluateWithContinuations(data, entries, i, data); match {
 				if d.options.Debug {
 					d.logger.Debug("✓ CONTINUATION MATCH",
 						"entry", i,
+						"strength", entry.Strength,
 						"result", result)
 				}
-				
+
 				if len(strings.TrimSpace(result)) > 0 && d.isValidDescription(result) {
 					return d.formatResult(result), nil
 				}
 			}
 		}
-		
-		// Special handling for deeply nested entries (ContLevel >= 16) that might work independently
-		// This handles cases like 7z where ContLevel 32 entries exist without clear parents
+
+		// Handle deeply nested entries that might work independently
 		if entry.ContLevel >= 16 && entry.ContLevel <= 64 && d.hasPatternMatch(entry) {
-			if d.options.Debug {
-				d.logger.Debug("DEEP-NESTED: Testing high-level continuation entry",
-					"index", i,
-					"cont_level", entry.ContLevel,
-					"type", entry.Type,
-					"offset", entry.Offset)
-			}
-			
 			if match, result := d.matchEntry(data, entry, data); match {
+				finalResult := d.enhanceDeepNestedResult(data, entries, i, result)
+				
 				if d.options.Debug {
 					d.logger.Debug("✓ DEEP-NESTED MATCH",
 						"entry", i,
-						"result", result)
+						"strength", entry.Strength,
+						"result", finalResult)
 				}
-				
-				// For deeply nested entries, try to find a meaningful description
-				// by checking subsequent entries at the same or higher level
-				finalResult := d.enhanceDeepNestedResult(data, entries, i, result)
-				
+
 				if len(strings.TrimSpace(finalResult)) > 0 && d.isValidDescription(finalResult) {
 					return d.formatResult(finalResult), nil
 				}
 			}
 		}
-		
-		// Additional check for high-level continuation entries with specific binary patterns
-		// but empty descriptions (like entry 4643 for 7z files)
-		if entry.ContLevel >= 16 && entry.ContLevel <= 64 && entry.Type == magic.FILE_STRING {
-			desc := entry.GetDescription()
-			if len(strings.TrimSpace(desc)) == 0 {
-				// Check if this has a known binary signature pattern
-				if d.hasKnownBinaryPattern(entry) {
-					if d.options.Debug {
-						d.logger.Debug("DEEP-NESTED: Testing binary pattern with empty description",
-							"index", i,
-							"cont_level", entry.ContLevel)
-					}
-					
-					if match, result := d.matchEntry(data, entry, data); match {
-						if d.options.Debug {
-							d.logger.Debug("✓ DEEP-NESTED BINARY PATTERN MATCH",
-								"entry", i,
-								"result", result)
-						}
-						
-						finalResult := d.enhanceDeepNestedResult(data, entries, i, result)
-						
-						if len(strings.TrimSpace(finalResult)) > 0 && d.isValidDescription(finalResult) {
-							return d.formatResult(finalResult), nil
-						}
-					}
-				}
-			}
-		}
-	}
 
-	// Second pass: High-priority binary signatures (other patterns)
-	for i, entry := range entries {
-		if !d.isHighPriorityType(entry.Type) {
-			continue
-		}
-
-		// Skip entries with very high offsets for debugging
-		if d.options.Debug && entry.Offset > int32(len(data)) {
-			continue
-		}
-
+		// Standard pattern matching
 		if match, result := d.matchEntry(data, entry, data); match {
 			if d.options.Debug {
-				d.logger.Debug("✓ HIGH-PRIORITY MATCH", "entry", i, "result", result)
+				d.logger.Debug("✓ STANDARD MATCH",
+					"entry", i,
+					"strength", entry.Strength,
+					"result", result)
 			}
 
-			// Skip matches with empty results to continue searching
+			// Skip matches with empty or invalid results
 			if len(strings.TrimSpace(result)) == 0 {
 				if d.options.Debug {
 					d.logger.Debug("  Skipping empty result, continuing search...")
@@ -371,7 +227,6 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 				continue
 			}
 
-			// Additional validation before accepting result
 			if !d.isValidDescription(result) {
 				if d.options.Debug {
 					d.logger.Debug("  Skipping invalid description", "hex", hex.EncodeToString([]byte(result)))
@@ -381,134 +236,6 @@ func (d *Detector) DetectBytes(data []byte) (string, error) {
 
 			return d.formatResult(result), nil
 		}
-		
-		matchAttempts++
-
-		// Log first few attempts in debug mode
-		if d.options.Debug && matchAttempts <= 10 {
-			d.logger.Debug("Entry (HP)", "index", i, "type", entry.Type, "offset", entry.Offset, "desc", entry.GetDescription())
-		}
-	}
-
-	// Second pass: Medium-priority patterns
-	for i, entry := range entries {
-		if d.isHighPriorityType(entry.Type) || d.isLowPriorityType(entry.Type) {
-			continue
-		}
-
-		// Skip entries with very high offsets for debugging
-		if d.options.Debug && entry.Offset > int32(len(data)) {
-			continue
-		}
-
-		if match, result := d.matchEntry(data, entry, data); match {
-			if d.options.Debug {
-				d.logger.Debug("✓ MEDIUM-PRIORITY MATCH", "entry", i, "result", result)
-			}
-
-			// Skip matches with empty results to continue searching
-			if len(strings.TrimSpace(result)) == 0 {
-				if d.options.Debug {
-					d.logger.Debug("  Skipping empty result, continuing search...")
-				}
-				continue
-			}
-
-			// Additional validation before accepting result
-			if !d.isValidDescription(result) {
-				if d.options.Debug {
-					d.logger.Debug("  Skipping invalid description", "hex", hex.EncodeToString([]byte(result)))
-				}
-				continue
-			}
-
-			return d.formatResult(result), nil
-		}
-		matchAttempts++
-	}
-
-	// Third pass: Medium-priority patterns (including string patterns not in first pass)
-	for i, entry := range entries {
-		// Skip patterns already processed in first pass
-		if entry.Offset == 0 && d.isSpecificBinarySignature(entry) {
-			continue
-		}
-		
-		if d.isHighPriorityType(entry.Type) || d.isLowPriorityType(entry.Type) {
-			continue
-		}
-		
-		// Process STRING types and other medium-priority patterns
-		if entry.Type == magic.FILE_STRING || entry.Type == magic.FILE_PSTRING ||
-		   entry.Type == magic.FILE_BESTRING16 || entry.Type == magic.FILE_LESTRING16 ||
-		   entry.Type == magic.FILE_REGEX || entry.Type == magic.FILE_SEARCH {
-			
-			// Skip entries with very high offsets for debugging
-			if d.options.Debug && entry.Offset > int32(len(data)) {
-				continue
-			}
-
-			if match, result := d.matchEntry(data, entry, data); match {
-				if d.options.Debug {
-					d.logger.Debug("✓ MEDIUM-PRIORITY MATCH", "entry", i, "result", result)
-				}
-
-				// Skip matches with empty results to continue searching
-				if len(strings.TrimSpace(result)) == 0 {
-					if d.options.Debug {
-						d.logger.Debug("  Skipping empty result, continuing search...")
-					}
-					continue
-				}
-
-				// Additional validation before accepting result
-				if !d.isValidDescription(result) {
-					if d.options.Debug {
-						d.logger.Debug("  Skipping invalid description", "hex", hex.EncodeToString([]byte(result)))
-					}
-					continue
-				}
-
-				return d.formatResult(result), nil
-			}
-		}
-	}
-
-	// Fourth pass: Low-priority generic patterns (USE, NAME, DEFAULT)
-	for i, entry := range entries {
-		if !d.isLowPriorityType(entry.Type) {
-			continue
-		}
-
-		// Skip entries with very high offsets for debugging
-		if d.options.Debug && entry.Offset > int32(len(data)) {
-			continue
-		}
-
-		if match, result := d.matchEntry(data, entry, data); match {
-			if d.options.Debug {
-				d.logger.Debug("✓ LOW-PRIORITY MATCH", "entry", i, "result", result)
-			}
-
-			// Skip matches with empty results to continue searching
-			if len(strings.TrimSpace(result)) == 0 {
-				if d.options.Debug {
-					d.logger.Debug("  Skipping empty result, continuing search...")
-				}
-				continue
-			}
-
-			// Additional validation before accepting result
-			if !d.isValidDescription(result) {
-				if d.options.Debug {
-					d.logger.Debug("  Skipping invalid description", "hex", hex.EncodeToString([]byte(result)))
-				}
-				continue
-			}
-
-			return d.formatResult(result), nil
-		}
-		matchAttempts++
 	}
 
 	if d.options.Debug {
@@ -525,11 +252,11 @@ func (d *Detector) hasPatternMatch(entry *magic.MagicEntry) bool {
 		value := entry.GetValueAsString()
 		return len(value) > 0
 	}
-	
+
 	// Add other type checks as needed
-	return entry.Type == magic.FILE_BYTE || entry.Type == magic.FILE_SHORT || 
-		   entry.Type == magic.FILE_LONG || entry.Type == magic.FILE_LELONG ||
-		   entry.Type == magic.FILE_BELONG
+	return entry.Type == magic.FILE_BYTE || entry.Type == magic.FILE_SHORT ||
+		entry.Type == magic.FILE_LONG || entry.Type == magic.FILE_LELONG ||
+		entry.Type == magic.FILE_BELONG
 }
 
 // hasKnownBinaryPattern checks if an entry contains a known binary signature
@@ -537,61 +264,61 @@ func (d *Detector) hasKnownBinaryPattern(entry *magic.MagicEntry) bool {
 	if entry.Type != magic.FILE_STRING {
 		return false
 	}
-	
+
 	value := entry.GetValueAsString()
 	if len(value) < 4 {
 		return false
 	}
-	
+
 	// Check for 7z signature: 37 7a bc af 27 1c
 	if len(value) >= 6 {
-		if value[0] == 0x37 && value[1] == 0x7a && value[2] == 0xbc && 
-		   value[3] == 0xaf && value[4] == 0x27 && value[5] == 0x1c {
+		if value[0] == 0x37 && value[1] == 0x7a && value[2] == 0xbc &&
+			value[3] == 0xaf && value[4] == 0x27 && value[5] == 0x1c {
 			return true
 		}
 	}
-	
+
 	// Add other known binary patterns as needed
 	// ZIP signature: 50 4b 03 04 or 50 4b 05 06 or 50 4b 07 08
 	if len(value) >= 4 {
-		if value[0] == 0x50 && value[1] == 0x4b && 
-		   (value[2] == 0x03 || value[2] == 0x05 || value[2] == 0x07) {
+		if value[0] == 0x50 && value[1] == 0x4b &&
+			(value[2] == 0x03 || value[2] == 0x05 || value[2] == 0x07) {
 			return true
 		}
 	}
-	
+
 	// PDF signature: 25 50 44 46 (%PDF)
 	if len(value) >= 4 {
 		if value[0] == 0x25 && value[1] == 0x50 && value[2] == 0x44 && value[3] == 0x46 {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
 // enhanceDeepNestedResult tries to find a meaningful description for deeply nested entries
 func (d *Detector) enhanceDeepNestedResult(data []byte, entries []*magic.MagicEntry, index int, baseResult string) string {
 	entry := entries[index]
-	
+
 	if d.options.Debug {
 		d.logger.Debug("ENHANCE: Processing deep nested result",
 			"index", index,
 			"base_result", baseResult,
 			"cont_level", entry.ContLevel)
 	}
-	
+
 	// If the base result is empty, look for description in nearby entries
 	if len(strings.TrimSpace(baseResult)) == 0 {
 		// Check subsequent entries at the same level for descriptions
 		for i := index + 1; i < len(entries) && i < index+20; i++ {
 			nextEntry := entries[i]
-			
+
 			// Stop if we hit a different continuation level
 			if nextEntry.ContLevel != entry.ContLevel {
 				continue
 			}
-			
+
 			desc := nextEntry.GetDescription()
 			if len(strings.TrimSpace(desc)) > 0 {
 				// Try to match this entry to see if it provides additional context
@@ -603,14 +330,14 @@ func (d *Detector) enhanceDeepNestedResult(data []byte, entries []*magic.MagicEn
 				}
 			}
 		}
-		
+
 		// For 7z specifically, provide a default description based on the signature match
 		if entry.Type == magic.FILE_STRING && entry.Offset == 0 {
 			value := entry.GetValueAsString()
 			if len(value) >= 6 {
 				// Check for 7z signature: 37 7a bc af 27 1c
-				if value[0] == 0x37 && value[1] == 0x7a && value[2] == 0xbc && 
-				   value[3] == 0xaf && value[4] == 0x27 && value[5] == 0x1c {
+				if value[0] == 0x37 && value[1] == 0x7a && value[2] == 0xbc &&
+					value[3] == 0xaf && value[4] == 0x27 && value[5] == 0x1c {
 					// Try to determine version from the file
 					if len(data) >= 7 {
 						version := data[6]
@@ -621,160 +348,10 @@ func (d *Detector) enhanceDeepNestedResult(data []byte, entries []*magic.MagicEn
 			}
 		}
 	}
-	
+
 	return baseResult
 }
 
-// isSpecificBinarySignature returns true for entries that represent specific binary file signatures
-func (d *Detector) isSpecificBinarySignature(entry *magic.MagicEntry) bool {
-	// Must be at offset 0 to be a file signature
-	if entry.Offset != 0 {
-		return false
-	}
-	
-	// Must have a meaningful description to be a specific signature
-	desc := entry.GetDescription()
-	if len(strings.TrimSpace(desc)) == 0 {
-		return false
-	}
-	
-	// Reject single-character descriptions that are likely generic or meaningless
-	if len(desc) == 1 {
-		return false
-	}
-	
-	// Reject very short descriptions unless they're known good file types
-	if len(desc) <= 3 {
-		// Allow known file extensions/types
-		lowerDesc := strings.ToLower(desc)
-		knownShort := lowerDesc == "png" || lowerDesc == "pdf" || lowerDesc == "gif" || 
-		             lowerDesc == "zip" || lowerDesc == "exe" || lowerDesc == "xml" ||
-		             lowerDesc == "txt" || lowerDesc == "htm" || lowerDesc == "jpg"
-		if !knownShort {
-			return false
-		}
-	}
-	
-	// Binary types at offset 0 with meaningful descriptions are usually specific signatures
-	switch entry.Type {
-	case magic.FILE_BYTE, magic.FILE_SHORT, magic.FILE_LONG:
-		// Only if the expected value is not zero (to avoid generic "anything != 0" matches)
-		if entry.GetValueAsUint64() != 0 {
-			return true
-		}
-		return false
-	case magic.FILE_BESHORT, magic.FILE_BELONG, magic.FILE_LESHORT, magic.FILE_LELONG:
-		// Only if the expected value is not zero (to avoid generic "anything != 0" matches)
-		if entry.GetValueAsUint64() != 0 {
-			return true
-		}
-		return false
-	case magic.FILE_BEQUAD, magic.FILE_LEQUAD, magic.FILE_QUAD:
-		// Only if the expected value is not zero (to avoid generic "anything != 0" matches)
-		if entry.GetValueAsUint64() != 0 {
-			return true
-		}
-		return false
-	case magic.FILE_STRING:
-		// String types at offset 0 with binary patterns (like 7z signature)
-		if entry.Offset == 0 {
-			// Check if this looks like a binary signature
-			valueStr := entry.GetValueAsString()
-			if len(valueStr) >= 3 {
-				// Look for known binary patterns or non-printable characters
-				hasBinary := false
-				for i := 0; i < len(valueStr) && i < 8; i++ {
-					b := valueStr[i]
-					if b < 32 || b > 126 {
-						hasBinary = true
-						break
-					}
-				}
-				if hasBinary {
-					return true
-				}
-				
-				// Check for known archive/binary signatures
-				desc := entry.GetDescription()
-				if len(desc) > 0 {
-					lowerDesc := strings.ToLower(desc)
-					if strings.Contains(lowerDesc, "archive") ||
-					   strings.Contains(lowerDesc, "zip") ||
-					   strings.Contains(lowerDesc, "7z") ||
-					   strings.Contains(lowerDesc, "7-zip") ||
-					   strings.Contains(lowerDesc, "compressed") ||
-					   strings.Contains(lowerDesc, "executable") ||
-					   strings.Contains(lowerDesc, "image") {
-						return true
-					}
-				}
-			}
-		}
-		return false
-	default:
-		return false
-	}
-}
-
-// isHighPriorityType returns true for types that should be checked first (specific binary signatures)
-func (d *Detector) isHighPriorityType(magicType uint8) bool {
-	switch magicType {
-	case magic.FILE_BYTE, magic.FILE_SHORT, magic.FILE_LONG:
-		return true
-	case magic.FILE_BESHORT, magic.FILE_BELONG, magic.FILE_LESHORT, magic.FILE_LELONG:
-		return true
-	case magic.FILE_BEQUAD, magic.FILE_LEQUAD, magic.FILE_QUAD:
-		return true
-	case magic.FILE_FLOAT, magic.FILE_DOUBLE:
-		return true
-	case magic.FILE_BEFLOAT, magic.FILE_LEFLOAT:
-		return true
-	case magic.FILE_BEDOUBLE, magic.FILE_LEDOUBLE:
-		return true
-	case magic.FILE_BEDATE, magic.FILE_LEDATE:
-		return true
-	case magic.FILE_BELDATE, magic.FILE_LEQDATE, magic.FILE_BEQDATE:
-		return true
-	case magic.FILE_DATE, magic.FILE_LDATE, magic.FILE_LELDATE:
-		return true
-	case magic.FILE_QDATE, magic.FILE_QLDATE, magic.FILE_LEQLDATE, magic.FILE_BEQLDATE:
-		return true
-	case magic.FILE_MSDOSDATE, magic.FILE_LEMSDOSDATE, magic.FILE_BEMSDOSDATE:
-		return true
-	case magic.FILE_MSDOSTIME, magic.FILE_LEMSDOSTIME, magic.FILE_BEMSDOSTIME:
-		return true
-	case magic.FILE_OCTAL:
-		return true
-	case magic.FILE_MEDATE, magic.FILE_MELDATE, magic.FILE_MELONG:
-		return true
-	case magic.FILE_QWDATE, magic.FILE_LEQWDATE, magic.FILE_BEQWDATE:
-		return true
-	case magic.FILE_BEID3, magic.FILE_LEID3:
-		return true
-	case magic.FILE_BEVARINT, magic.FILE_LEVARINT:
-		return true
-	case magic.FILE_BESTRING16:
-		return true
-	case magic.FILE_GUID:
-		return true
-	case magic.FILE_DER:
-		return true
-	default:
-		return false
-	}
-}
-
-// isLowPriorityType returns true for types that should be checked last (generic patterns)
-func (d *Detector) isLowPriorityType(magicType uint8) bool {
-	switch magicType {
-	case magic.FILE_USE, magic.FILE_NAME, magic.FILE_DEFAULT:
-		return true
-	case magic.FILE_INDIRECT: // Complex addressing, often generic
-		return true
-	default:
-		return false
-	}
-}
 
 // matchEntry attempts to match data against a single magic entry
 func (d *Detector) matchEntry(data []byte, entry *magic.MagicEntry, fullData []byte) (bool, string) {

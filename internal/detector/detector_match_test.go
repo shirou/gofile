@@ -122,7 +122,7 @@ func TestMatchShort(t *testing.T) {
 			entry: &magic.MagicEntry{
 				Type:    magic.FILE_SHORT,
 				Value:   [96]byte{0x12, 0xF0}, // Little-endian stored: 0xF012
-				NumMask: 0xF0FF, // Mask: keep high byte of first and low byte of second
+				NumMask: 0xF0FF,               // Mask: keep high byte of first and low byte of second
 				Desc:    [64]byte{'M', 'a', 's', 'k', 'e', 'd', ' ', 's', 'h', 'o', 'r', 't'},
 				Reln:    '=',
 				Flag:    0,
@@ -398,7 +398,7 @@ func TestMatchBEShort(t *testing.T) {
 	}
 }
 
-// TestMatchLEShort tests the matchLEShort function  
+// TestMatchLEShort tests the matchLEShort function
 func TestMatchLEShort(t *testing.T) {
 	db := &MockDatabase{}
 	detector := New(db, DefaultOptions())
@@ -742,7 +742,7 @@ func TestMatchFloat(t *testing.T) {
 			name: "float match (simplified test)",
 			data: []byte{0x00, 0x00, 0x80, 0x3F}, // IEEE 754 float 1.0 (little-endian)
 			entry: &magic.MagicEntry{
-				Type:  magic.FILE_FLOAT,
+				Type: magic.FILE_FLOAT,
 				// Store 1.0 as double: 0x3FF0000000000000
 				Value: [96]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0, 0x3F}, // 1.0 as double
 				Desc:  [64]byte{'F', 'l', 'o', 'a', 't', ' ', 'm', 'a', 't', 'c', 'h'},
@@ -1346,9 +1346,9 @@ func TestMatchIndirect(t *testing.T) {
 				0xFF, 0xEE, 0xDD, 0xCC, // Offset 16: target data
 			},
 			entry: &magic.MagicEntry{
-				Type:     magic.FILE_BYTE,          // The actual data type to evaluate
-				Flag:     magic.INDIR,              // Indirect flag
-				InType:   magic.FILE_LONG,          // Pointer type (32-bit)
+				Type:     magic.FILE_BYTE, // The actual data type to evaluate
+				Flag:     magic.INDIR,     // Indirect flag
+				InType:   magic.FILE_LONG, // Pointer type (32-bit)
 				Offset:   0,
 				InOffset: 0,
 				Value:    [96]byte{0xFF}, // Expected value at target location
@@ -1428,10 +1428,10 @@ func TestMatchUse(t *testing.T) {
 			name: "USE without reference name",
 			data: []byte("Some data"),
 			entry: &magic.MagicEntry{
-				Type: magic.FILE_USE,
+				Type:  magic.FILE_USE,
 				Value: [96]byte{}, // No reference name
-				Desc: [64]byte{'U', 's', 'e'},
-				Reln: '=',
+				Desc:  [64]byte{'U', 's', 'e'},
+				Reln:  '=',
 			},
 			expected: true, // The function returns true if there's a valid description
 		},

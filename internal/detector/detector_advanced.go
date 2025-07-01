@@ -58,7 +58,6 @@ func (apm *AdvancedPatternMatcher) matchTypeGroup(data []byte, magicType uint8, 
 	return false, ""
 }
 
-
 // FastHeaderDetection performs quick detection based on common file headers
 func (apm *AdvancedPatternMatcher) FastHeaderDetection(data []byte) (bool, string) {
 	if len(data) < 4 {
@@ -67,24 +66,24 @@ func (apm *AdvancedPatternMatcher) FastHeaderDetection(data []byte) (bool, strin
 
 	// Common file signatures for fast detection
 	signatures := map[string]string{
-		"\xFF\xD8\xFF":     "JPEG image data",
+		"\xFF\xD8\xFF":      "JPEG image data",
 		"\x89PNG\r\n\x1A\n": "PNG image data",
-		"GIF8":             "GIF image data", 
-		"%PDF":             "PDF document",
-		"PK\x03\x04":       "ZIP archive data",
-		"Rar!":             "RAR archive data",
-		"\x7FELF":          "ELF executable",
-		"MZ":               "MS-DOS executable",
-		"\xCA\xFE\xBA\xBE": "Java class file",
-		"RIFF":             "RIFF data",
-		"\x00\x00\x01\x00": "Windows icon",
-		"\x00\x00\x02\x00": "Windows cursor",
-		"ID3":              "MP3 audio file",
-		"fLaC":             "FLAC audio file",
-		"OggS":             "Ogg audio file",
-		"\x1F\x8B":         "gzip compressed data",
-		"BZh":              "bzip2 compressed data",
-		"\xFD7zXZ\x00":     "XZ compressed data",
+		"GIF8":              "GIF image data",
+		"%PDF":              "PDF document",
+		"PK\x03\x04":        "ZIP archive data",
+		"Rar!":              "RAR archive data",
+		"\x7FELF":           "ELF executable",
+		"MZ":                "MS-DOS executable",
+		"\xCA\xFE\xBA\xBE":  "Java class file",
+		"RIFF":              "RIFF data",
+		"\x00\x00\x01\x00":  "Windows icon",
+		"\x00\x00\x02\x00":  "Windows cursor",
+		"ID3":               "MP3 audio file",
+		"fLaC":              "FLAC audio file",
+		"OggS":              "Ogg audio file",
+		"\x1F\x8B":          "gzip compressed data",
+		"BZh":               "bzip2 compressed data",
+		"\xFD7zXZ\x00":      "XZ compressed data",
 	}
 
 	// Check against known signatures
@@ -170,7 +169,7 @@ func (apm *AdvancedPatternMatcher) validateGUIDFormat(data []byte) bool {
 	// Basic GUID validation - check for all zeros or all ones
 	allZeros := true
 	allOnes := true
-	
+
 	for i := 0; i < 16; i++ {
 		if data[i] != 0x00 {
 			allZeros = false

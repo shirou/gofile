@@ -69,21 +69,21 @@ func TestDetectFile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := tt.setupFile(t)
-			
+
 			result, err := DetectFile(path)
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("DetectFile() expected error, got nil")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("DetectFile() unexpected error: %v", err)
 				return
 			}
-			
+
 			if tt.wantContain != "" && !strings.Contains(strings.ToLower(result), strings.ToLower(tt.wantContain)) {
 				t.Errorf("DetectFile() = %q, want to contain %q", result, tt.wantContain)
 			}
@@ -155,23 +155,23 @@ func TestDetectFileWithOptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := DetectFileWithOptions(tt.path, tt.options)
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("DetectFileWithOptions() expected error, got nil")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("DetectFileWithOptions() unexpected error: %v", err)
 				return
 			}
-			
+
 			if result == "" {
 				t.Errorf("DetectFileWithOptions() returned empty result")
 			}
-			
+
 			// When MIME option is set, result should not contain typical description words
 			if tt.options.MIME && strings.Contains(strings.ToLower(result), "text") && !strings.Contains(result, "/") {
 				t.Errorf("DetectFileWithOptions() with MIME=true should return MIME type, got: %q", result)
@@ -216,21 +216,21 @@ func TestDetectReader(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reader := bytes.NewReader(tt.data)
-			
+
 			result, err := DetectReader(reader)
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("DetectReader() expected error, got nil")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("DetectReader() unexpected error: %v", err)
 				return
 			}
-			
+
 			if tt.wantContain != "" && !strings.Contains(strings.ToLower(result), strings.ToLower(tt.wantContain)) {
 				t.Errorf("DetectReader() = %q, want to contain %q", result, tt.wantContain)
 			}
@@ -270,7 +270,7 @@ func TestDetectBytes(t *testing.T) {
 			wantErr:     false,
 		},
 		{
-			name:        "JPEG header", 
+			name:        "JPEG header",
 			data:        []byte{0xFF, 0xD8, 0xFF, 0xE0},
 			wantContain: "data", // Currently returns generic "data" - will be improved when magic detection is enhanced
 			wantErr:     false,
@@ -286,19 +286,19 @@ func TestDetectBytes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := DetectBytes(tt.data)
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("DetectBytes() expected error, got nil")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("DetectBytes() unexpected error: %v", err)
 				return
 			}
-			
+
 			if tt.wantContain != "" && !strings.Contains(strings.ToLower(result), strings.ToLower(tt.wantContain)) {
 				t.Errorf("DetectBytes() = %q, want to contain %q", result, tt.wantContain)
 			}

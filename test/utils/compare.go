@@ -23,34 +23,34 @@ func CompareResults(actual, expected *DetectionResult) *ComparisonResult {
 		EncodingMatch:    true,
 		Differences:      []string{},
 	}
-	
+
 	// Compare descriptions
 	if !compareStrings(actual.Description, expected.Description) {
 		result.Match = false
 		result.DescriptionMatch = false
-		result.Differences = append(result.Differences, 
-			fmt.Sprintf("Description: expected '%s', got '%s'", 
+		result.Differences = append(result.Differences,
+			fmt.Sprintf("Description: expected '%s', got '%s'",
 				expected.Description, actual.Description))
 	}
-	
+
 	// Compare MIME types
 	if !compareStrings(actual.MimeType, expected.MimeType) {
 		result.Match = false
 		result.MimeTypeMatch = false
-		result.Differences = append(result.Differences, 
-			fmt.Sprintf("MIME type: expected '%s', got '%s'", 
+		result.Differences = append(result.Differences,
+			fmt.Sprintf("MIME type: expected '%s', got '%s'",
 				expected.MimeType, actual.MimeType))
 	}
-	
+
 	// Compare encodings
 	if !compareStrings(actual.Encoding, expected.Encoding) {
 		result.Match = false
 		result.EncodingMatch = false
-		result.Differences = append(result.Differences, 
-			fmt.Sprintf("Encoding: expected '%s', got '%s'", 
+		result.Differences = append(result.Differences,
+			fmt.Sprintf("Encoding: expected '%s', got '%s'",
 				expected.Encoding, actual.Encoding))
 	}
-	
+
 	return result
 }
 
@@ -67,7 +67,7 @@ func compareStrings(actual, expected string) bool {
 	// Normalize strings
 	actual = normalizeString(actual)
 	expected = normalizeString(expected)
-	
+
 	return actual == expected
 }
 
@@ -75,24 +75,24 @@ func compareStrings(actual, expected string) bool {
 func normalizeString(s string) string {
 	// Trim whitespace
 	s = strings.TrimSpace(s)
-	
+
 	// Convert to lowercase for case-insensitive comparison
 	s = strings.ToLower(s)
-	
+
 	// Normalize common variations
 	replacements := map[string]string{
 		"jpeg":     "jpg",
-		"tiff":     "tif", 
+		"tiff":     "tif",
 		"mpeg":     "mpg",
 		"ascii":    "text",
 		"utf-8":    "utf8",
 		"iso-8859": "iso8859",
 	}
-	
+
 	for old, new := range replacements {
 		s = strings.ReplaceAll(s, old, new)
 	}
-	
+
 	return s
 }
 
@@ -101,41 +101,41 @@ func CalculateAccuracy(results []*ComparisonResult) float64 {
 	if len(results) == 0 {
 		return 0.0
 	}
-	
+
 	matches := 0
 	for _, result := range results {
 		if result.Match {
 			matches++
 		}
 	}
-	
+
 	return float64(matches) / float64(len(results)) * 100.0
 }
 
 // GenerateReport generates a detailed comparison report
 func GenerateReport(results []*ComparisonResult, testNames []string) string {
 	var report strings.Builder
-	
+
 	accuracy := CalculateAccuracy(results)
-	
+
 	report.WriteString(fmt.Sprintf("Test Results Summary\n"))
 	report.WriteString(fmt.Sprintf("====================\n"))
 	report.WriteString(fmt.Sprintf("Total tests: %d\n", len(results)))
 	report.WriteString(fmt.Sprintf("Passed: %d\n", countMatches(results)))
 	report.WriteString(fmt.Sprintf("Failed: %d\n", len(results)-countMatches(results)))
 	report.WriteString(fmt.Sprintf("Accuracy: %.2f%%\n\n", accuracy))
-	
+
 	// Detailed failures
 	report.WriteString("Failed Tests:\n")
 	report.WriteString("=============\n")
-	
+
 	for i, result := range results {
 		if !result.Match {
 			testName := "unknown"
 			if i < len(testNames) {
 				testName = testNames[i]
 			}
-			
+
 			report.WriteString(fmt.Sprintf("Test: %s\n", testName))
 			for _, diff := range result.Differences {
 				report.WriteString(fmt.Sprintf("  - %s\n", diff))
@@ -143,7 +143,7 @@ func GenerateReport(results []*ComparisonResult, testNames []string) string {
 			report.WriteString("\n")
 		}
 	}
-	
+
 	return report.String()
 }
 

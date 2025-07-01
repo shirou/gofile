@@ -32,21 +32,21 @@ func TestComprehensiveTypesCoverage(t *testing.T) {
 
 	// Test data for each type
 	testData := []byte{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88}
-	
+
 	for _, magicType := range allTypes {
 		t.Run(getTypeName(magicType), func(t *testing.T) {
 			entry := &magic.MagicEntry{
-				Type:     magicType,
-				Offset:   0,
-				Reln:     '=',
-				NumMask:  0,
-				Value:    [96]byte{0x12, 0x34, 0x56, 0x78},
-				Desc:     [64]byte{'T', 'e', 's', 't', ' ', 'd', 'e', 's', 'c'},
+				Type:    magicType,
+				Offset:  0,
+				Reln:    '=',
+				NumMask: 0,
+				Value:   [96]byte{0x12, 0x34, 0x56, 0x78},
+				Desc:    [64]byte{'T', 'e', 's', 't', ' ', 'd', 'e', 's', 'c'},
 			}
 
 			// This should not panic and should handle the type gracefully
 			match, result := detector.performMatch(testData, entry, testData)
-			
+
 			// We don't expect all to match, but they should all be handled without error
 			t.Logf("Type %d (%s): match=%v, result='%s'", magicType, getTypeName(magicType), match, result)
 		})
@@ -56,67 +56,67 @@ func TestComprehensiveTypesCoverage(t *testing.T) {
 // getTypeName returns a human-readable name for a magic type
 func getTypeName(magicType uint8) string {
 	names := map[uint8]string{
-		magic.FILE_BYTE:         "BYTE",
-		magic.FILE_SHORT:        "SHORT",
-		magic.FILE_DEFAULT:      "DEFAULT",
-		magic.FILE_LONG:         "LONG",
-		magic.FILE_STRING:       "STRING",
-		magic.FILE_DATE:         "DATE",
-		magic.FILE_BESHORT:      "BESHORT",
-		magic.FILE_BELONG:       "BELONG",
-		magic.FILE_BEDATE:       "BEDATE",
-		magic.FILE_LESHORT:      "LESHORT",
-		magic.FILE_LELONG:       "LELONG",
-		magic.FILE_LEDATE:       "LEDATE",
-		magic.FILE_PSTRING:      "PSTRING",
-		magic.FILE_LDATE:        "LDATE",
-		magic.FILE_BELDATE:      "BELDATE",
-		magic.FILE_LELDATE:      "LELDATE",
-		magic.FILE_REGEX:        "REGEX",
-		magic.FILE_BESTRING16:   "BESTRING16",
-		magic.FILE_LESTRING16:   "LESTRING16",
-		magic.FILE_SEARCH:       "SEARCH",
-		magic.FILE_MEDATE:       "MEDATE",
-		magic.FILE_MELDATE:      "MELDATE",
-		magic.FILE_MELONG:       "MELONG",
-		magic.FILE_QUAD:         "QUAD",
-		magic.FILE_LEQUAD:       "LEQUAD",
-		magic.FILE_BEQUAD:       "BEQUAD",
-		magic.FILE_QDATE:        "QDATE",
-		magic.FILE_LEQDATE:      "LEQDATE",
-		magic.FILE_BEQDATE:      "BEQDATE",
-		magic.FILE_QLDATE:       "QLDATE",
-		magic.FILE_LEQLDATE:     "LEQLDATE",
-		magic.FILE_BEQLDATE:     "BEQLDATE",
-		magic.FILE_FLOAT:        "FLOAT",
-		magic.FILE_BEFLOAT:      "BEFLOAT",
-		magic.FILE_LEFLOAT:      "LEFLOAT",
-		magic.FILE_DOUBLE:       "DOUBLE",
-		magic.FILE_BEDOUBLE:     "BEDOUBLE",
-		magic.FILE_LEDOUBLE:     "LEDOUBLE",
-		magic.FILE_BEID3:        "BEID3",
-		magic.FILE_LEID3:        "LEID3",
-		magic.FILE_INDIRECT:     "INDIRECT",
-		magic.FILE_QWDATE:       "QWDATE",
-		magic.FILE_LEQWDATE:     "LEQWDATE",
-		magic.FILE_BEQWDATE:     "BEQWDATE",
-		magic.FILE_NAME:         "NAME",
-		magic.FILE_USE:          "USE",
-		magic.FILE_CLEAR:        "CLEAR",
-		magic.FILE_DER:          "DER",
-		magic.FILE_GUID:         "GUID",
-		magic.FILE_OFFSET:       "OFFSET",
-		magic.FILE_BEVARINT:     "BEVARINT",
-		magic.FILE_LEVARINT:     "LEVARINT",
-		magic.FILE_MSDOSDATE:    "MSDOSDATE",
-		magic.FILE_LEMSDOSDATE:  "LEMSDOSDATE",
-		magic.FILE_BEMSDOSDATE:  "BEMSDOSDATE",
-		magic.FILE_MSDOSTIME:    "MSDOSTIME",
-		magic.FILE_LEMSDOSTIME:  "LEMSDOSTIME",
-		magic.FILE_BEMSDOSTIME:  "BEMSDOSTIME",
-		magic.FILE_OCTAL:        "OCTAL",
+		magic.FILE_BYTE:        "BYTE",
+		magic.FILE_SHORT:       "SHORT",
+		magic.FILE_DEFAULT:     "DEFAULT",
+		magic.FILE_LONG:        "LONG",
+		magic.FILE_STRING:      "STRING",
+		magic.FILE_DATE:        "DATE",
+		magic.FILE_BESHORT:     "BESHORT",
+		magic.FILE_BELONG:      "BELONG",
+		magic.FILE_BEDATE:      "BEDATE",
+		magic.FILE_LESHORT:     "LESHORT",
+		magic.FILE_LELONG:      "LELONG",
+		magic.FILE_LEDATE:      "LEDATE",
+		magic.FILE_PSTRING:     "PSTRING",
+		magic.FILE_LDATE:       "LDATE",
+		magic.FILE_BELDATE:     "BELDATE",
+		magic.FILE_LELDATE:     "LELDATE",
+		magic.FILE_REGEX:       "REGEX",
+		magic.FILE_BESTRING16:  "BESTRING16",
+		magic.FILE_LESTRING16:  "LESTRING16",
+		magic.FILE_SEARCH:      "SEARCH",
+		magic.FILE_MEDATE:      "MEDATE",
+		magic.FILE_MELDATE:     "MELDATE",
+		magic.FILE_MELONG:      "MELONG",
+		magic.FILE_QUAD:        "QUAD",
+		magic.FILE_LEQUAD:      "LEQUAD",
+		magic.FILE_BEQUAD:      "BEQUAD",
+		magic.FILE_QDATE:       "QDATE",
+		magic.FILE_LEQDATE:     "LEQDATE",
+		magic.FILE_BEQDATE:     "BEQDATE",
+		magic.FILE_QLDATE:      "QLDATE",
+		magic.FILE_LEQLDATE:    "LEQLDATE",
+		magic.FILE_BEQLDATE:    "BEQLDATE",
+		magic.FILE_FLOAT:       "FLOAT",
+		magic.FILE_BEFLOAT:     "BEFLOAT",
+		magic.FILE_LEFLOAT:     "LEFLOAT",
+		magic.FILE_DOUBLE:      "DOUBLE",
+		magic.FILE_BEDOUBLE:    "BEDOUBLE",
+		magic.FILE_LEDOUBLE:    "LEDOUBLE",
+		magic.FILE_BEID3:       "BEID3",
+		magic.FILE_LEID3:       "LEID3",
+		magic.FILE_INDIRECT:    "INDIRECT",
+		magic.FILE_QWDATE:      "QWDATE",
+		magic.FILE_LEQWDATE:    "LEQWDATE",
+		magic.FILE_BEQWDATE:    "BEQWDATE",
+		magic.FILE_NAME:        "NAME",
+		magic.FILE_USE:         "USE",
+		magic.FILE_CLEAR:       "CLEAR",
+		magic.FILE_DER:         "DER",
+		magic.FILE_GUID:        "GUID",
+		magic.FILE_OFFSET:      "OFFSET",
+		magic.FILE_BEVARINT:    "BEVARINT",
+		magic.FILE_LEVARINT:    "LEVARINT",
+		magic.FILE_MSDOSDATE:   "MSDOSDATE",
+		magic.FILE_LEMSDOSDATE: "LEMSDOSDATE",
+		magic.FILE_BEMSDOSDATE: "BEMSDOSDATE",
+		magic.FILE_MSDOSTIME:   "MSDOSTIME",
+		magic.FILE_LEMSDOSTIME: "LEMSDOSTIME",
+		magic.FILE_BEMSDOSTIME: "BEMSDOSTIME",
+		magic.FILE_OCTAL:       "OCTAL",
 	}
-	
+
 	if name, exists := names[magicType]; exists {
 		return name
 	}
@@ -186,7 +186,7 @@ func TestAdvancedPatternMatcher(t *testing.T) {
 
 		data := []byte("This is test content for matching")
 		match, result := apm.detector.matchStringGroup(data, entries)
-		
+
 		if !match {
 			t.Errorf("matchStringGroup() should have matched")
 		}
@@ -205,7 +205,7 @@ func TestAdvancedPatternMatcher(t *testing.T) {
 
 		data2 := []byte("This contains data content")
 		match2, result2 := apm.detector.matchStringGroup(data2, entries2)
-		
+
 		if !match2 {
 			t.Errorf("matchStringGroup() should have matched second pattern")
 		}
@@ -223,7 +223,7 @@ func TestDetectorCache(t *testing.T) {
 		// Store and retrieve
 		cache.StoreResult("key1", "result1")
 		result, exists := cache.GetCachedResult("key1")
-		
+
 		if !exists {
 			t.Errorf("Expected cache hit for key1")
 		}
@@ -240,21 +240,21 @@ func TestDetectorCache(t *testing.T) {
 
 	t.Run("CacheEviction", func(t *testing.T) {
 		cache := NewDetectorCache(2) // Small cache for testing eviction
-		
+
 		cache.StoreResult("key1", "result1")
 		cache.StoreResult("key2", "result2")
 		cache.StoreResult("key3", "result3") // Should evict key1
-		
+
 		_, exists := cache.GetCachedResult("key1")
 		if exists {
 			t.Errorf("Expected key1 to be evicted")
 		}
-		
+
 		_, exists = cache.GetCachedResult("key2")
 		if !exists {
 			t.Errorf("Expected key2 to still exist")
 		}
-		
+
 		_, exists = cache.GetCachedResult("key3")
 		if !exists {
 			t.Errorf("Expected key3 to exist")
@@ -306,7 +306,7 @@ func TestMiddleEndianImplementations(t *testing.T) {
 			expected: 0x34127856,
 		},
 		{
-			name:     "MELONG middle-endian", 
+			name:     "MELONG middle-endian",
 			funcType: magic.FILE_MELONG,
 			data:     []byte{0xAB, 0xCD, 0xEF, 0x01}, // Middle-endian: data[2] | data[3]<<8 | data[0]<<16 | data[1]<<24 = 0xCDAB01EF
 			expected: 0xCDAB01EF,

@@ -125,13 +125,13 @@ func descriptionToMIME(desc string) string {
 		return "image/gif"
 	case contains(desc, "webp"):
 		return "image/webp"
-	case contains(desc, "bmp"):
+	case contains(desc, "bmp") || contains(desc, "pc bitmap"):
 		return "image/bmp"
 	case contains(desc, "tiff") || contains(desc, "tif"):
 		return "image/tiff"
 	case contains(desc, "svg"):
 		return "image/svg+xml"
-	case contains(desc, "ico"):
+	case contains(desc, "ico") || contains(desc, "icon resource") || contains(desc, "cursor resource"):
 		return "image/x-icon"
 
 	// Document formats
@@ -178,6 +178,8 @@ func descriptionToMIME(desc string) string {
 		return "text/css"
 	case contains(desc, "javascript"):
 		return "text/javascript"
+	case contains(desc, "python") && contains(desc, "byte-compiled"):
+		return "application/x-bytecode.python"
 	case contains(desc, "rfc 822 mail") || contains(desc, "rfc822 mail"):
 		return "message/rfc822"
 	case contains(desc, "dos batch file") || contains(desc, "batch file"):
@@ -186,6 +188,8 @@ func descriptionToMIME(desc string) string {
 		return "text/plain"
 
 	// Archive formats (check most specific patterns first)
+	case contains(desc, "rpm"):
+		return "application/x-rpm"
 	case contains(desc, "7-zip"):
 		return "application/x-7z-compressed"
 	case contains(desc, "gzip") || contains(desc, "gz"):
