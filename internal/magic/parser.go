@@ -56,9 +56,14 @@ func (p *Parser) Parse(r io.Reader) (*MagicDatabase, error) {
 	}
 
 	// Calculate minimum expected size based on data in file
-	// Magic files can have different struct sizes depending on version
-	// Use a more conservative estimate - each entry needs at least 320 bytes
-	minExpectedSize := totalEntries * 320
+	// Version 18 uses 376 bytes, version 20+ uses 432 bytes
+	var entrySize uint32
+	if header.Version >= 20 {
+		entrySize = 432
+	} else {
+		entrySize = 376
+	}
+	minExpectedSize := totalEntries * entrySize
 
 	if uint32(len(data)) < minExpectedSize {
 		return nil, fmt.Errorf("file too small: expected at least %d, got %d", minExpectedSize, len(data))
@@ -75,7 +80,7 @@ func (p *Parser) Parse(r io.Reader) (*MagicDatabase, error) {
 	if header.Version >= 20 {
 		actualEntrySize = 432 // Version 20+
 	} else {
-		actualEntrySize = 376 // Version 18-19
+		actualEntrySize = 376 // Version 18-19 (still uses smaller struct)
 	}
 
 	// Data starts at offset 376 based on analysis
@@ -90,7 +95,7 @@ func (p *Parser) Parse(r io.Reader) (*MagicDatabase, error) {
 				return nil, fmt.Errorf("unexpected end of file while parsing entries")
 			}
 
-			entry, err := p.parseEntry(data[offset:])
+			entry, err := p.parseEntry(data[offset:], header.Version)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse entry %d in set %d: %w", i, set, err)
 			}
@@ -145,10 +150,11 @@ func (p *Parser) parseHeader(data []byte) (*MagicHeader, error) {
 }
 
 // parseEntry parses a single magic entry according to the official C struct layout
-func (p *Parser) parseEntry(data []byte) (*MagicEntry, error) {
-	// The binary size is 376 bytes for v18, not including computed fields like Strength
-	const binarySize = 376
-	if len(data) < binarySize {
+func (p *Parser) parseEntry(data []byte, version uint32) (*MagicEntry, error) {
+	// The binary size varies by version: 376 for v18, 432 for v20
+	// We need at least 376 bytes to parse any entry
+	const minBinarySize = 376
+	if len(data) < minBinarySize {
 		return nil, fmt.Errorf("insufficient data for magic entry")
 	}
 
@@ -213,8 +219,20 @@ func (p *Parser) parseEntry(data []byte) (*MagicEntry, error) {
 	copy(entry.Apple[:], data[offset:offset+8])
 	offset += 8
 
-	// Words 63-78 (64 bytes): char ext[MAXEXT] (raised from 64 for v18)
-	copy(entry.Ext[:], data[offset:offset+64])
+	// Words 63-78: char ext[] - size depends on version
+	// Version 18: 64 bytes, Version 20+: 120 bytes 
+	var extSize int
+	if version >= 20 {
+		extSize = 120 // MAXEXT for v20+
+	} else {
+		extSize = 64  // MAXEXT for v18
+	}
+	
+	// Clear the entire Ext field first, then copy available data
+	for i := range entry.Ext {
+		entry.Ext[i] = 0
+	}
+	copy(entry.Ext[:extSize], data[offset:offset+extSize])
 
 	return entry, nil
 }

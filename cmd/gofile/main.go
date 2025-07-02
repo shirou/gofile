@@ -174,129 +174,58 @@ func showMagicList() {
 			continue
 		}
 
-		// Process entries like the official file command
-		var binaryPatterns, textPatterns []*magic.MagicEntry
+		// Process entries in groups based on ContLevel structure
+		// This correctly interprets the database format where entries are grouped
+		var groupRepresentatives []*magic.MagicEntry
 		
-		// Process both binary and text patterns
-		for mode := 0; mode < 2; mode++ {
-			var patterns *[]*magic.MagicEntry
-			
-			if mode == 0 {
-				patterns = &binaryPatterns
-			} else {
-				patterns = &textPatterns
+		for i := 0; i < len(setEntries); i++ {
+			entry := setEntries[i]
+			if entry == nil {
+				continue
 			}
 			
-			for i := 0; i < len(setEntries); i++ {
-				entry := setEntries[i]
-				if entry == nil {
-					continue
-				}
-				
-				// Determine if this entry should be included based on type
-				// The BINTEST/TEXTTEST flags are not stored in the database
-				// but are computed based on the entry type
-				includeEntry := false
-				
-				if mode == 0 { // Binary mode
-					// Check if this is a binary type
-					switch entry.Type {
-					case magic.FILE_BYTE, magic.FILE_SHORT, magic.FILE_LONG,
-						magic.FILE_DATE, magic.FILE_BESHORT, magic.FILE_BELONG,
-						magic.FILE_BEDATE, magic.FILE_LESHORT, magic.FILE_LELONG,
-						magic.FILE_LEDATE, magic.FILE_LDATE, magic.FILE_BELDATE,
-						magic.FILE_LELDATE, magic.FILE_MEDATE, magic.FILE_MELDATE,
-						magic.FILE_MELONG, magic.FILE_QUAD, magic.FILE_LEQUAD,
-						magic.FILE_BEQUAD, magic.FILE_QDATE, magic.FILE_LEQDATE,
-						magic.FILE_BEQDATE, magic.FILE_QLDATE, magic.FILE_LEQLDATE,
-						magic.FILE_BEQLDATE, magic.FILE_QWDATE, magic.FILE_LEQWDATE,
-						magic.FILE_BEQWDATE, magic.FILE_FLOAT, magic.FILE_BEFLOAT,
-						magic.FILE_LEFLOAT, magic.FILE_DOUBLE, magic.FILE_BEDOUBLE,
-						magic.FILE_LEDOUBLE, magic.FILE_BEVARINT, magic.FILE_LEVARINT,
-						magic.FILE_DER, magic.FILE_GUID, magic.FILE_OFFSET,
-						magic.FILE_MSDOSDATE, magic.FILE_BEMSDOSDATE, magic.FILE_LEMSDOSDATE,
-						magic.FILE_MSDOSTIME, magic.FILE_BEMSDOSTIME, magic.FILE_LEMSDOSTIME,
-						magic.FILE_OCTAL:
-						includeEntry = true
-					case magic.FILE_STRING, magic.FILE_PSTRING, magic.FILE_BESTRING16,
-						magic.FILE_LESTRING16, magic.FILE_REGEX, magic.FILE_SEARCH:
-						// For string types, check str_flags (stored in NumMask for strings)
-						// STRING_BINTEST = BIT(6) = 0x40
-						if (entry.NumMask & 0x40) != 0 {
-							includeEntry = true
-						}
-					}
-				} else { // Text mode
-					switch entry.Type {
-					case magic.FILE_STRING, magic.FILE_PSTRING, magic.FILE_BESTRING16,
-						magic.FILE_LESTRING16, magic.FILE_REGEX, magic.FILE_SEARCH:
-						// For string types, check str_flags
-						// STRING_TEXTTEST = BIT(5) = 0x20
-						if (entry.NumMask & 0x20) != 0 {
-							includeEntry = true
-						} else if (entry.NumMask & 0x40) == 0 {
-							// If neither BINTEST nor TEXTTEST is set,
-							// default to text for string types
-							includeEntry = true
-						}
-					}
-				}
-				
-				if !includeEntry {
-					// Skip all continuations of this entry
-					for i+1 < len(setEntries) && setEntries[i+1].ContLevel > entry.ContLevel {
-						i++
-					}
-					continue
-				}
-				
-				// Skip certain types
-				switch entry.Type {
-				case magic.FILE_USE, magic.FILE_NAME, magic.FILE_DEFAULT, 
-				     magic.FILE_CLEAR, magic.FILE_INDIRECT:
-					// Skip all continuations too
-					for i+1 < len(setEntries) && setEntries[i+1].ContLevel > entry.ContLevel {
-						i++
-					}
-					continue
-				}
-				
-				// Find the first non-empty description and MIME type
-				// by looking at this entry and its continuations
-				descIndex := i
-				mimeIndex := i
-				lineIndex := i
-				
-				// Look through continuations
-				j := i + 1
-				for j < len(setEntries) && setEntries[j].ContLevel > entry.ContLevel {
-					if len(setEntries[descIndex].GetDescription()) == 0 && 
-					   len(setEntries[j].GetDescription()) > 0 {
-						descIndex = j
-					}
-					if len(setEntries[mimeIndex].GetMimeType()) == 0 && 
-					   len(setEntries[j].GetMimeType()) > 0 {
-						mimeIndex = j
-					}
-					j++
-				}
-				
-				// Skip to end of this group
-				i = j - 1
-				
-				// Only include if we have a description
-				if len(setEntries[descIndex].GetDescription()) > 0 {
-					// Create a synthetic entry for display
-					displayEntry := &magic.MagicEntry{
-						Type:     entry.Type,
-						Offset:   entry.Offset,
-						Strength: entry.Strength,
-						Desc:     setEntries[descIndex].Desc,
-						MimeType: setEntries[mimeIndex].MimeType,
-						Lineno:   setEntries[lineIndex].Lineno,
-					}
-					*patterns = append(*patterns, displayEntry)
-				}
+			// Start of a new group - collect all continuations
+			// This follows the official apprentice_list logic exactly
+			groupStart := i
+			j := i + 1
+			
+			// Collect all continuations (entries with cont_level > 0) 
+			for j < len(setEntries) && setEntries[j] != nil && setEntries[j].ContLevel > 0 {
+				j++
+			}
+			
+			groupEnd := j
+			
+			// Grouping complete
+			
+			// Process this group to create a representative entry
+			representative := processEntryGroup(setEntries[groupStart:groupEnd])
+			if representative != nil {
+				groupRepresentatives = append(groupRepresentatives, representative)
+			}
+			
+			// Move to next group
+			i = groupEnd - 1
+		}
+		
+		if len(groupRepresentatives) == 0 {
+			continue
+		}
+		
+		// Separate entries by mode (binary vs text) using proper type classification
+		var binaryPatterns, textPatterns []*magic.MagicEntry
+		
+		for _, entry := range groupRepresentatives {
+			// Set proper mode flags based on entry type (equivalent to set_test_type)
+			setTestTypeFlags(entry)
+			
+			// Add to binary patterns if it has BINTEST flag
+			if (entry.Flag & magic.BINTEST) != 0 {
+				binaryPatterns = append(binaryPatterns, entry)
+			}
+			// Add to text patterns if it has TEXTTEST flag  
+			if (entry.Flag & magic.TEXTTEST) != 0 {
+				textPatterns = append(textPatterns, entry)
 			}
 		}
 		
@@ -325,6 +254,123 @@ func showMagicList() {
 	}
 }
 
+
+// processEntryGroup creates a representative entry from a group of related magic entries
+// This implements the grouping logic similar to apprentice_list in the official file command
+func processEntryGroup(group []*magic.MagicEntry) *magic.MagicEntry {
+	if len(group) == 0 {
+		return nil
+	}
+	
+	// Use the first entry as the base (group leader)
+	base := group[0]
+	if base == nil {
+		return nil
+	}
+	
+	// Find the best description and MIME type from the group
+	descIndex := 0
+	mimeIndex := 0
+	
+	for i, entry := range group {
+		if entry == nil {
+			continue
+		}
+		
+		desc := entry.GetDescription()
+		
+		// Find first non-empty descriptions and MIME types
+		// This follows the official apprentice_list logic exactly
+		if len(group[descIndex].GetDescription()) == 0 && len(desc) > 0 {
+			descIndex = i
+		}
+		
+		// Prefer non-empty MIME types
+		if len(group[mimeIndex].GetMimeType()) == 0 && len(entry.GetMimeType()) > 0 {
+			mimeIndex = i
+		}
+	}
+	
+	// Only include groups that have a meaningful description
+	if len(group[descIndex].GetDescription()) == 0 {
+		return nil
+	}
+	
+	// Create representative entry using base entry structure but best description/mime
+	representative := &magic.MagicEntry{
+		Flag:           base.Flag,
+		ContLevel:      base.ContLevel,
+		Factor:         base.Factor,
+		Reln:           base.Reln,
+		Vallen:         base.Vallen,
+		Type:           base.Type,
+		InType:         base.InType,
+		InOp:           base.InOp,
+		MaskOp:         base.MaskOp,
+		Cond:           base.Cond,
+		FactorOp:       base.FactorOp,
+		Offset:         base.Offset,
+		InOffset:       base.InOffset,
+		Lineno:         base.Lineno,
+		NumMask:        base.NumMask,
+		Value:          base.Value,
+		Desc:           group[descIndex].Desc,
+		MimeType:       group[mimeIndex].MimeType,
+		Apple:          base.Apple,
+		Ext:            base.Ext,
+		Strength:       base.Strength,
+		ManualStrength: base.ManualStrength,
+		StrengthOp:     base.StrengthOp,
+	}
+	
+	return representative
+}
+
+// setTestTypeFlags sets BINTEST/TEXTTEST flags based on entry type
+// This implements the equivalent of set_test_type from apprentice.c
+func setTestTypeFlags(entry *magic.MagicEntry) {
+	// Reset test flags
+	entry.Flag &^= (magic.BINTEST | magic.TEXTTEST)
+	
+	// Set flags based on entry type
+	switch entry.Type {
+	// Binary types get BINTEST flag
+	case magic.FILE_BYTE, magic.FILE_SHORT, magic.FILE_LONG, magic.FILE_DATE,
+		magic.FILE_BESHORT, magic.FILE_BELONG, magic.FILE_BEDATE,
+		magic.FILE_LESHORT, magic.FILE_LELONG, magic.FILE_LEDATE,
+		magic.FILE_LDATE, magic.FILE_BELDATE, magic.FILE_LELDATE,
+		magic.FILE_MEDATE, magic.FILE_MELDATE, magic.FILE_MELONG,
+		magic.FILE_QUAD, magic.FILE_LEQUAD, magic.FILE_BEQUAD,
+		magic.FILE_QDATE, magic.FILE_LEQDATE, magic.FILE_BEQDATE,
+		magic.FILE_QLDATE, magic.FILE_LEQLDATE, magic.FILE_BEQLDATE,
+		magic.FILE_QWDATE, magic.FILE_LEQWDATE, magic.FILE_BEQWDATE,
+		magic.FILE_FLOAT, magic.FILE_BEFLOAT, magic.FILE_LEFLOAT,
+		magic.FILE_DOUBLE, magic.FILE_BEDOUBLE, magic.FILE_LEDOUBLE,
+		magic.FILE_BEVARINT, magic.FILE_LEVARINT, magic.FILE_DER,
+		magic.FILE_GUID, magic.FILE_OFFSET, magic.FILE_MSDOSDATE,
+		magic.FILE_BEMSDOSDATE, magic.FILE_LEMSDOSDATE, magic.FILE_MSDOSTIME,
+		magic.FILE_BEMSDOSTIME, magic.FILE_LEMSDOSTIME, magic.FILE_OCTAL:
+		entry.Flag |= magic.BINTEST
+		
+	// String types check str_flags for overrides
+	case magic.FILE_STRING, magic.FILE_PSTRING, magic.FILE_BESTRING16,
+		magic.FILE_LESTRING16, magic.FILE_REGEX, magic.FILE_SEARCH:
+		// Check for explicit STRING_BINTEST flag (stored in NumMask for string types)
+		if (entry.NumMask & 0x40) != 0 { // STRING_BINTEST = BIT(6)
+			entry.Flag |= magic.BINTEST
+		} else if (entry.NumMask & 0x20) != 0 { // STRING_TEXTTEST = BIT(5)
+			entry.Flag |= magic.TEXTTEST
+		} else {
+			// Default for strings: compatibility mode (both)
+			// But for -l listing, prefer text mode
+			entry.Flag |= magic.TEXTTEST
+		}
+		
+	// Other types default to binary
+	default:
+		entry.Flag |= magic.BINTEST
+	}
+}
 
 // printMagicEntry prints a single magic entry in the official format
 func printMagicEntry(entry *magic.MagicEntry) {

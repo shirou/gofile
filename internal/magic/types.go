@@ -13,10 +13,10 @@ const (
 	MIN_VERSION = 18         // Minimum supported version
 	MAGIC_SETS  = 2          // Number of magic sets
 
-	// Maximum sizes
-	MAXDESC = 64 // Maximum description length
-	MAXMIME = 80 // Maximum MIME type length
-	MAXEXT  = 64 // Maximum extension length (v18)
+	// Maximum sizes - CORRECTED to match official libmagic
+	MAXDESC = 64  // Maximum description length
+	MAXMIME = 80  // Maximum MIME type length
+	MAXEXT  = 120 // Maximum extension length (raised from 64 for sqlite/sqlite3/...)
 )
 
 // File type constants (from file.h)
@@ -106,37 +106,52 @@ const (
 	COND_ELSE = 3
 )
 
-// MagicEntry represents a single magic entry (376 bytes in version 18, 432 in version 20)
-// Layout based on official file.h struct magic definition for version 18
+// MagicEntry represents a single magic entry (432 bytes for version 20)
+// Layout based on official file.h struct magic definition matching libmagic exactly
 type MagicEntry struct {
-	// Core fields (32 bytes) - CORRECT
-	Flag      uint16 // Offset 0: Flags (INDIR, OFFADD, etc.)
-	ContLevel uint8  // Offset 2: Continuation level
+	// Word 1 (4 bytes)
+	Flag      uint16 // Offset 0-1: Flags (INDIR, OFFADD, etc.)
+	ContLevel uint8  // Offset 2: Continuation level (">" count)
 	Factor    uint8  // Offset 3: Factor
 
-	Reln   uint8 // Offset 4: Relation (=, >, <, etc.)
+	// Word 2 (4 bytes)
+	Reln   uint8 // Offset 4: Relation operator (=, >, <, etc.)
 	Vallen uint8 // Offset 5: Length of string value
 	Type   uint8 // Offset 6: Comparison type (FILE_*)
 	InType uint8 // Offset 7: Type of indirection
 
+	// Word 3 (4 bytes)
 	InOp     uint8 // Offset 8: Operator for indirection
 	MaskOp   uint8 // Offset 9: Operator for mask
 	Cond     uint8 // Offset 10: Conditional type
 	FactorOp uint8 // Offset 11: Factor operator
 
-	Offset   int32  // Offset 12: File offset to check
-	InOffset int32  // Offset 16: Indirection offset
-	Lineno   uint32 // Offset 20: Line number in magic file
+	// Word 4 (4 bytes)
+	Offset int32 // Offset 12-15: File offset to check
 
-	// Union for masks/counts (8 bytes at offset 24)
+	// Word 5 (4 bytes)
+	InOffset int32 // Offset 16-19: Indirection offset
+
+	// Word 6 (4 bytes)
+	Lineno uint32 // Offset 20-23: Line number in magic file
+
+	// Word 7-8 (8 bytes) - Union for masks/counts
 	NumMask uint64 // For numeric types (or StrRange/StrFlags for strings)
 
-	// CORRECTED FIELD ORDER for version 18 (376 bytes total):
-	Value    [128]byte     // Offset 32: Value field (128 bytes for v18)
-	Desc     [MAXDESC]byte // Offset 160: Description (64 bytes)
-	MimeType [MAXMIME]byte // Offset 224: MIME type (80 bytes)
-	Apple    [8]byte       // Offset 304: Apple/format info (8 bytes)
-	Ext      [64]byte      // Offset 312: Extensions (64 bytes for v18)
+	// Words 9-24 (128 bytes) - VALUETYPE union
+	Value [128]byte // Offset 32-159: Value field (MAXstring = 128)
+
+	// Words 25-40 (64 bytes)
+	Desc [MAXDESC]byte // Offset 160-223: Description (64 bytes)
+
+	// Words 41-60 (80 bytes)
+	MimeType [MAXMIME]byte // Offset 224-303: MIME type (80 bytes)
+
+	// Words 61-62 (8 bytes)
+	Apple [8]byte // Offset 304-311: Apple creator/type (8 bytes)
+
+	// Words 63-78 (120 bytes) - CORRECTED SIZE
+	Ext [MAXEXT]byte // Offset 312-431: Extensions (120 bytes)
 
 	// Computed fields (not part of binary format)
 	Strength       uint32 // Calculated strength for pattern priority
