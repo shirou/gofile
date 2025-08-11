@@ -168,6 +168,45 @@ gofile/
 4. **Performance Tests**: Benchmark against various file types and sizes
 5. **Edge Cases**: Test malformed files, empty files, special files
 
+### Testing Conventions
+
+#### Table-Driven Tests
+
+All tests should use table-driven test patterns with `map[string]struct` format where the key is the test name:
+
+```go
+func TestExample(t *testing.T) {
+    tests := map[string]struct {
+        input    string
+        expected string
+        wantErr  bool
+    }{
+        "test case name": {
+            input:    "test input",
+            expected: "expected output",
+            wantErr:  false,
+        },
+        "error case": {
+            input:    "invalid",
+            expected: "",
+            wantErr:  true,
+        },
+    }
+
+    for name, tt := range tests {
+        t.Run(name, func(t *testing.T) {
+            // test implementation
+        })
+    }
+}
+```
+
+This approach provides:
+- Clear test case names that appear in test output
+- Easy navigation to specific test cases
+- Better test organization and readability
+- Consistent testing patterns across the codebase
+
 ### Next Steps
 
 1. Implement the magic file parser based on the format specification

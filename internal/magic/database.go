@@ -43,7 +43,7 @@ func (db *Database) FormatForList() []string {
 			}
 		}
 		
-		// Text patterns
+		// Text patterns  
 		output = append(output, "Text patterns:")
 		if len(set.TextEntries) > 0 {
 			// Sort by strength

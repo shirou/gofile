@@ -46,6 +46,7 @@ func (p *Parser) Parse(r io.Reader, filename string) error {
 	lineNumber := 0
 	var currentEntry *Entry
 	var entryStack []*Entry
+	var entryLineNumber int // Track the line number of the current entry
 	
 	for scanner.Scan() {
 		lineNumber++
@@ -64,14 +65,17 @@ func (p *Parser) Parse(r io.Reader, filename string) error {
 				if strings.HasPrefix(line, "!:strength") {
 					currentEntry.Strength = currentEntry.CalculateStrength()
 				}
+				// Recalculate test type after directives
+				currentEntry.Flag = currentEntry.GetTestType()
 			}
 			continue
 		}
 		
-		// Parse the magic line
-		parsed, err := p.parseLine(line, lineNumber)
+		// Parse the magic line - save the entry line number
+		entryLineNumber = lineNumber
+		parsed, err := p.parseLine(line, entryLineNumber)
 		if err != nil {
-			p.errors = append(p.errors, fmt.Errorf("line %d: %w", lineNumber, err))
+			p.errors = append(p.errors, fmt.Errorf("line %d: %w", entryLineNumber, err))
 			continue
 		}
 		
@@ -82,18 +86,24 @@ func (p *Parser) Parse(r io.Reader, filename string) error {
 			Type:       parsed.Type,
 			Test:       parsed.Test,
 			Message:    parsed.Message,
-			LineNumber: lineNumber,
+			LineNumber: entryLineNumber,
 			SourceFile: filename,
 			Children:   make([]*Entry, 0),
 		}
+		
+		// Parse operator from test field
+		p.parseOperator(entry)
+		
+		// Parse string flags if it's a string type
+		p.parseStringFlags(entry)
 		
 		// Check if this is a FILE_NAME type (name pattern)
 		if strings.ToLower(parsed.Type) == "name" {
 			entry.IsNameType = true
 		}
 		
-		// Determine if this is a binary or text pattern
-		entry.Binary = p.isBinaryPattern(entry)
+		// Determine test type for pattern
+		entry.Flag = entry.GetTestType()
 		
 		// Handle hierarchy
 		if entry.Level == 0 {
@@ -148,59 +158,38 @@ func (p *Parser) parseLine(line string, lineNumber int) (*ParsedLine, error) {
 	// Remove leading '>' characters
 	line = strings.TrimLeft(line, ">")
 	
-	// Split the line into fields
-	// Format: offset type test message
-	fields := strings.Fields(line)
-	if len(fields) < 3 {
-		return nil, fmt.Errorf("invalid magic line format: too few fields")
-	}
+	// Magic files use tab-separated fields
+	// Format: offset<TAB>type<TAB>test<TAB>message
+	// Try to split by tabs first
+	parts := strings.Split(line, "\t")
 	
-	parsed.Offset = fields[0]
-	parsed.Type = fields[1]
-	
-	// Find where the message starts (after test value)
-	messageStart := -1
-	inQuote := false
-	escapeNext := false
-	testEnd := len(parsed.Offset) + len(parsed.Type) + 2 // Account for spaces
-	
-	for i := testEnd; i < len(line); i++ {
-		ch := line[i]
-		if escapeNext {
-			escapeNext = false
-			continue
-		}
-		if ch == '\\' {
-			escapeNext = true
-			continue
-		}
-		if ch == '"' || ch == '\'' {
-			inQuote = !inQuote
-		}
-		if !inQuote && ch == '\t' {
-			messageStart = i + 1
-			break
-		}
-		if !inQuote && ch == ' ' && i+1 < len(line) && line[i+1] != ' ' {
-			// Check if next non-space might be start of message
-			nextFields := strings.Fields(line[i+1:])
-			if len(nextFields) > 0 && !p.looksLikeTest(nextFields[0]) {
-				messageStart = i + 1
-				break
-			}
+	// Clean up empty parts from multiple tabs
+	cleanParts := make([]string, 0)
+	for _, part := range parts {
+		if strings.TrimSpace(part) != "" {
+			cleanParts = append(cleanParts, part)
 		}
 	}
 	
-	if messageStart > 0 && messageStart < len(line) {
-		testPart := strings.TrimSpace(line[testEnd:messageStart])
-		parsed.Test = testPart
-		parsed.Message = strings.TrimSpace(line[messageStart:])
-	} else {
-		// Assume third field is test, rest is message
+	if len(cleanParts) < 3 {
+		// Fallback to space-separated if no tabs found
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			return nil, fmt.Errorf("invalid magic line format: too few fields")
+		}
+		parsed.Offset = fields[0]
+		parsed.Type = fields[1]
 		parsed.Test = fields[2]
 		if len(fields) > 3 {
-			remainingFields := fields[3:]
-			parsed.Message = strings.Join(remainingFields, " ")
+			parsed.Message = strings.Join(fields[3:], " ")
+		}
+	} else {
+		// Tab-separated format
+		parsed.Offset = strings.TrimSpace(cleanParts[0])
+		parsed.Type = strings.TrimSpace(cleanParts[1])
+		parsed.Test = strings.TrimSpace(cleanParts[2])
+		if len(cleanParts) > 3 {
+			parsed.Message = strings.TrimSpace(cleanParts[3])
 		}
 	}
 	
@@ -232,6 +221,67 @@ func (p *Parser) looksLikeTest(s string) bool {
 	return false
 }
 
+// parseStringFlags extracts string type flags from the type field
+func (p *Parser) parseStringFlags(entry *Entry) {
+	typeField := entry.Type
+	
+	// Check if type contains '/' for flags
+	if idx := strings.Index(typeField, "/"); idx != -1 {
+		entry.Type = typeField[:idx]
+		flags := typeField[idx+1:]
+		
+		// Parse individual flags
+		for _, flag := range flags {
+			switch flag {
+			case 'c', 'C', 'W', 'w', 't', 'T', 'b', 'B':
+				entry.Flags = append(entry.Flags, string(flag))
+			}
+		}
+	}
+}
+
+// parseOperator extracts operator from test field and updates entry
+func (p *Parser) parseOperator(entry *Entry) {
+	if entry.Test == "" {
+		entry.Operator = "="
+		return
+	}
+	
+	// Handle special case for 'x' (any value)
+	if entry.Test == "x" {
+		entry.Operator = "x"
+		entry.Test = ""
+		return
+	}
+	
+	// Check for operators at the beginning of test
+	test := entry.Test
+	if len(test) >= 2 {
+		// Check for two-character operators first
+		twoChar := test[:2]
+		switch twoChar {
+		case "!=", "<=", ">=":
+			entry.Operator = twoChar
+			entry.Test = strings.TrimSpace(test[2:])
+			return
+		}
+	}
+	
+	if len(test) >= 1 {
+		// Check for single-character operators
+		oneChar := test[:1]
+		switch oneChar {
+		case "=", "!", "<", ">", "&", "^", "~":
+			entry.Operator = oneChar
+			entry.Test = strings.TrimSpace(test[1:])
+			return
+		}
+	}
+	
+	// Default to exact match
+	entry.Operator = "="
+}
+
 // parseDirective parses special directives like !:mime
 func (p *Parser) parseDirective(line string, entry *Entry) {
 	directive := strings.TrimPrefix(line, "!:")
@@ -260,17 +310,6 @@ func (p *Parser) parseDirective(line string, entry *Entry) {
 	}
 }
 
-// isBinaryPattern determines if a pattern is for binary data
-func (p *Parser) isBinaryPattern(entry *Entry) bool {
-	// In the original file command, most patterns are treated as binary
-	// Only explicitly text-oriented patterns are classified as text
-	
-	// For compatibility with original file command, 
-	// default all string patterns to binary
-	// This matches the observed behavior where even shell scripts
-	// are listed under "Binary patterns"
-	return true
-}
 
 // GetDatabase returns the parsed database
 func (p *Parser) GetDatabase() *Database {
@@ -302,14 +341,14 @@ func (p *Parser) OrganizeSets() {
 	for _, entry := range p.database.Entries {
 		if entry.IsNameType {
 			// FILE_NAME type patterns go to Set 1
-			if entry.Binary {
+			if entry.Flag == BINTEST {
 				set1.BinaryEntries = append(set1.BinaryEntries, entry)
 			} else {
 				set1.TextEntries = append(set1.TextEntries, entry)
 			}
 		} else {
 			// Regular patterns go to Set 0
-			if entry.Binary {
+			if entry.Flag == BINTEST {
 				set0.BinaryEntries = append(set0.BinaryEntries, entry)
 			} else {
 				set0.TextEntries = append(set0.TextEntries, entry)

@@ -1,5 +1,4 @@
 # Build artifacts
-./gofile
 *.exe
 *.dll
 *.so

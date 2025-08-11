@@ -2,26 +2,28 @@ package magic
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
 // Entry represents a single magic entry from a magic file
 type Entry struct {
-	Level           int         // Indentation level (0 for primary, >0 for continuation)
-	Offset          string      // Offset specification (can be complex expression)
-	Type            string      // Data type (byte, short, long, string, etc.)
-	Test            string      // Test value or operator
-	Message         string      // Message to output when matched
-	Strength        int         // Calculated strength value
-	StrengthMod     string      // Strength modifier from !:strength directive
-	LineNumber      int         // Line number in source file
-	SourceFile      string      // Source file name
-	Flags           []string    // Modifier flags
-	MimeType        string      // MIME type if specified
-	Extensions      []string    // File extensions if specified
-	Binary          bool        // True if this is a binary pattern
-	IsNameType      bool        // True if this is a FILE_NAME type pattern
-	Children        []*Entry    // Child entries (continuation lines)
+	Level       int      // Indentation level (0 for primary, >0 for continuation)
+	Offset      string   // Offset specification (can be complex expression)
+	Type        string   // Data type (byte, short, long, string, etc.)
+	Operator    string   // Comparison operator (=, !=, <, >, &, ^, ~, x, !)
+	Test        string   // Test value
+	Message     string   // Message to output when matched
+	Strength    int      // Calculated strength value
+	StrengthMod string   // Strength modifier from !:strength directive
+	LineNumber  int      // Line number in source file
+	SourceFile  string   // Source file name
+	Flags       []string // Modifier flags
+	MimeType    string   // MIME type if specified
+	Extensions  []string // File extensions if specified
+	Flag        TestType // BINTEST or TEXTTEST
+	IsNameType  bool     // True if this is a FILE_NAME type pattern
+	Children    []*Entry // Child entries (continuation lines)
 }
 
 // Database represents a collection of magic entries
@@ -64,122 +66,168 @@ func (s *StrengthInfo) String() string {
 	return fmt.Sprintf("Strength = %3d@%d: %s%s", s.Value, s.LineNumber, s.Message, mime)
 }
 
-// CalculateStrength calculates the strength value for an entry
-func (e *Entry) CalculateStrength() int {
-	const (
-		BASE_STRENGTH = 20
-		MULT          = 10
-	)
-	
-	strength := BASE_STRENGTH
-	
-	// Calculate value length for string types
-	valueLen := e.calculateValueLength()
-	
-	// Base strength by type
-	switch strings.ToLower(e.Type) {
-	case "string", "pstring":
-		// String length contributes to strength
-		strength += valueLen * MULT
-		
-	case "byte", "ubyte":
-		strength += 1 * MULT // 1 byte
-		
-	case "short", "ushort", "beshort", "leshort", "beshort16", "leshort16":
-		strength += 2 * MULT // 2 bytes
-		
-	case "long", "ulong", "belong", "lelong", "melong":
-		strength += 4 * MULT // 4 bytes
-		
-	case "quad", "uquad", "bequad", "lequad":
-		strength += 8 * MULT // 8 bytes
-		
-	case "float", "befloat", "lefloat":
-		strength += 4 * MULT // 4 bytes
-		
-	case "double", "bedouble", "ledouble":
-		strength += 8 * MULT // 8 bytes
-		
-	case "regex":
-		// Count literal characters in regex
-		literals := 0
-		escaped := false
-		for _, ch := range e.Test {
-			if escaped {
-				literals++
-				escaped = false
-			} else if ch == '\\' {
-				escaped = true
-			} else if strings.ContainsRune("^$.*+?[]{}()|", ch) {
-				// Regex metacharacters don't count
-			} else {
-				literals++
+// getStringFlagModifier returns strength modifiers for string flags
+func (e *Entry) getStringFlagModifier() int {
+	// String flags do not affect strength in the original file command
+	// They only affect how the string matching is performed
+	// (case sensitivity, whitespace handling, etc.)
+	return 0
+}
+
+// GetTestType determines whether this entry represents a binary or text pattern
+// This implements the same logic as the original file command's set_test_type function
+func (e *Entry) GetTestType() TestType {
+	// Handle types with parameters (e.g., search/256)
+	baseType := e.Type
+	if idx := strings.Index(baseType, "/"); idx > 0 {
+		baseType = baseType[:idx]
+	}
+
+	// Numeric types are all BINTEST (matching original file command)
+	switch baseType {
+	case TypeByte, TypeUbyte, TypeShort, TypeUshort, TypeBeshort, TypeLeshort,
+		TypeLong, TypeUlong, TypeBelong, TypeLelong, TypeMelong,
+		TypeQuad, TypeBequad, TypeLequad,
+		TypeFloat, TypeBefloat, TypeLefloat,
+		TypeDouble, TypeBedouble, TypeLedouble,
+		TypeDate, TypeBedate, TypeLedate, TypeLdate, TypeBeldate, TypeLeldate,
+		TypeMedate, TypeMeldate, TypeQdate, TypeLeqdate, TypeBeqdate,
+		TypeQldate, TypeLeqldate, TypeBeqldate, TypeQwdate, TypeLeqwdate, TypeBeqwdate,
+		TypeMsdosdate, TypeBemsdosdate, TypeLemsdosdate,
+		TypeMsdostime, TypeBemsdostime, TypeLemsdostime,
+		TypeBevarint, TypeLevarint, TypeDer, TypeGuid, TypeOffset, TypeOctal:
+		return BINTEST
+
+	case TypeString, TypePstring, TypeBestring16, TypeLestring16:
+		// Check for 't' flag which forces TEXTTEST
+		for _, flag := range e.Flags {
+			if flag == "t" || flag == "T" {
+				return TEXTTEST
 			}
 		}
-		strength += (literals * MULT) / 2
-		
-	case "search":
-		strength += valueLen * MULT
-		// Search has additional penalty based on range (not implemented yet)
-		
-	case "default", "clear":
-		return 0 // These have no strength
-		
-	default:
-		// Unknown types get base strength only
-	}
-	
-	// Add operator modifier (default is exact match)
-	// For now, assume exact match (+10) for all tests
-	strength += 10
-	
-	// Apply continuation level penalty
-	if e.Level > 0 {
-		reduction := 1.0 - (0.1 * float64(e.Level))
-		if reduction < 0 {
-			reduction = 0
+		// Regular strings default to binary (matching original file command)
+		return BINTEST
+
+	case TypeRegex, TypeSearch:
+		// For regex and search types, use UTF-8 validity check
+		// (matching original file command's file_looks_utf8 logic)
+		if e.Test != "" {
+			// Check if content looks like valid UTF-8 / printable text
+			if containsBinaryBytes(e.Test) {
+				return BINTEST
+			}
+			// If it's mostly printable, classify as text
+			if isPrintableText(e.Test) {
+				return TEXTTEST
+			}
 		}
-		strength = int(float64(strength) * reduction)
+		return BINTEST
+
+	default:
+		// Default to binary (matching original file command behavior)
+		return BINTEST
 	}
-	
-	// Apply manual strength modifier if present
-	if e.StrengthMod != "" {
-		mod := e.StrengthMod
-		if strings.HasPrefix(mod, "+") {
-			var modifier int
-			fmt.Sscanf(mod[1:], "%d", &modifier)  // Skip the '+' sign
-			strength += modifier
-		} else if strings.HasPrefix(mod, "-") {
-			var modifier int
-			fmt.Sscanf(mod[1:], "%d", &modifier)  // Skip the '-' sign
-			strength -= modifier  // Subtract the absolute value
-		} else if strings.HasPrefix(mod, "*") {
-			var multiplier int
-			fmt.Sscanf(mod[1:], "%d", &multiplier)
-			strength *= multiplier
-		} else if strings.HasPrefix(mod, "/") {
-			var divisor int
-			fmt.Sscanf(mod[1:], "%d", &divisor)
-			if divisor != 0 {
-				strength /= divisor
+}
+
+// containsBinaryBytes checks if a string contains binary escape sequences
+func containsBinaryBytes(test string) bool {
+	// Check for hex escapes that indicate binary data
+	if strings.Contains(test, "\\x") {
+		i := 0
+		for i < len(test) {
+			if i+3 < len(test) && test[i:i+2] == "\\x" {
+				// Parse hex value
+				hexStr := test[i+2 : i+4]
+				if val, err := strconv.ParseInt(hexStr, 16, 16); err == nil {
+					// Non-printable characters indicate binary
+					if val < 32 || val > 126 {
+						return true
+					}
+				}
+				i += 4
+			} else {
+				i++
+			}
+		}
+	}
+
+	// Check for null bytes or other binary indicators
+	binaryIndicators := []string{
+		"\\0",
+		"\\177", // DEL character
+	}
+	for _, binIndicator := range binaryIndicators {
+		if strings.Contains(test, binIndicator) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isPrintableText checks if a string is mostly printable text
+func isPrintableText(test string) bool {
+	if test == "" {
+		return false
+	}
+
+	// Count printable characters (excluding escape sequences)
+	printableCount := 0
+	totalChars := 0
+	i := 0
+	for i < len(test) {
+		if test[i] == '\\' && i+1 < len(test) {
+			// Skip escape sequences
+			if test[i+1] == 'x' && i+3 < len(test) {
+				// Hex escape
+				hexStr := test[i+2 : i+4]
+				if val, err := strconv.ParseInt(hexStr, 16, 16); err == nil {
+					if val >= 32 && val <= 126 {
+						printableCount++
+					}
+				}
+				totalChars++
+				i += 4
+			} else if test[i+1] >= '0' && test[i+1] <= '7' {
+				// Octal escape
+				j := i + 1
+				for j < i+4 && j < len(test) && test[j] >= '0' && test[j] <= '7' {
+					j++
+				}
+				i = j
+				totalChars++
+			} else {
+				// Other escapes like \n, \t, etc. are considered printable
+				i += 2
+				printableCount++
+				totalChars++
 			}
 		} else {
-			// Absolute value
-			var absolute int
-			fmt.Sscanf(mod, "%d", &absolute)
-			strength = absolute
+			ch := test[i]
+			if ch >= 32 && ch <= 126 {
+				printableCount++
+			}
+			totalChars++
+			i++
 		}
 	}
-	
-	return strength
+
+	// If more than 80% printable, likely text
+	return totalChars > 0 && float64(printableCount)/float64(totalChars) > 0.8
 }
 
 // calculateValueLength calculates the actual byte length of the test value
 func (e *Entry) calculateValueLength() int {
-	if e.Type != "string" && e.Type != "pstring" && e.Type != "search" {
+	// Handle types with parameters (e.g., search/256)
+	baseType := e.Type
+	if idx := strings.Index(baseType, "/"); idx > 0 {
+		baseType = baseType[:idx]
+	}
+
+	if baseType != TypeString && baseType != TypePstring && baseType != TypeSearch {
 		return 0
 	}
-	
+
 	// Parse escape sequences to get actual byte count
 	length := 0
 	i := 0
@@ -213,6 +261,6 @@ func (e *Entry) calculateValueLength() int {
 			length++
 		}
 	}
-	
+
 	return length
 }

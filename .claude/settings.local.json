@@ -7,7 +7,11 @@
       "Bash(go build:*)",
       "Bash(./file:*)",
       "Bash(go test:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(go run:*)",
+      "Bash(mv:*)",
+      "Bash(rm:*)",
+      "Bash(cat:*)"
     ],
     "deny": []
   }
