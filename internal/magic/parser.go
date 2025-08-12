@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -517,8 +518,6 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 		if len(l) == 0 {
 			return nil, fmt.Errorf("incomplete magic '%s'", line)
 		}
-		// For now, store the test value as-is
-		// In a full implementation, we'd call getvalue here
 		// Parse the value up to whitespace
 		valueEnd := 0
 		for valueEnd < len(l) && !isSpace(l[valueEnd]) {
@@ -526,6 +525,10 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 		}
 		if valueEnd > 0 {
 			m.TestStr = l[:valueEnd]
+			// Parse the test value into the appropriate Value field
+			if err := getValue(m, m.TestStr); err != nil {
+				return nil, fmt.Errorf("error parsing value '%s': %w", m.TestStr, err)
+			}
 			l = l[valueEnd:]
 		} else {
 			m.TestStr = ""
@@ -559,19 +562,6 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 
 	// Store original values for easier access
 	m.OffsetStr = fmt.Sprintf("%d", m.Offset)
-
-	// Parse and store the test value based on type
-	if isStringType(typeStr) && m.TestStr != "" {
-		// For string types, parse the test string and store in Value.S
-		parsedStr := getStr(m.TestStr, false)
-		copy(m.Value.S[:], []byte(parsedStr))
-		if len(parsedStr) > 255 {
-			m.Vallen = 255
-		} else {
-			m.Vallen = uint8(len(parsedStr))
-		}
-	}
-	// TODO: Handle numeric types by parsing TestStr and storing in appropriate Value field
 
 	// Calculate initial strength
 	m.Strength = m.apprenticeMagicStrength()
@@ -1314,4 +1304,205 @@ func fileMagicStrength(m *Magic, _ uint32) int {
 	}
 
 	return val
+}
+
+// getValue parses the test value string and stores it in the appropriate Value field
+// This is equivalent to the getvalue() function in apprentice.c
+func getValue(m *Magic, p string) error {
+	// Handle string types
+	switch m.Type {
+	case FILE_BESTRING16, FILE_LESTRING16, FILE_STRING, FILE_PSTRING,
+		FILE_REGEX, FILE_SEARCH, FILE_NAME, FILE_USE, FILE_DER, FILE_OCTAL:
+		// Parse string value using getStr
+		parsedStr := getStr(p, false)
+		if parsedStr == "" && p != "" {
+			return fmt.Errorf("cannot get string from '%s'", p)
+		}
+		
+		// Store in Value.S array
+		copy(m.Value.S[:], []byte(parsedStr))
+		if len(parsedStr) > 255 {
+			m.Vallen = 255
+		} else {
+			m.Vallen = uint8(len(parsedStr))
+		}
+		
+		// For regex, we could validate it here if needed
+		// In the C code, they compile the regex to validate it
+		
+		return nil
+		
+	case FILE_FLOAT, FILE_BEFLOAT, FILE_LEFLOAT:
+		// Parse as float32
+		val, err := strconv.ParseFloat(strings.TrimSpace(p), 32)
+		if err != nil {
+			return fmt.Errorf("unparsable float '%s': %w", p, err)
+		}
+		m.Value.F = float32(val)
+		return nil
+		
+	case FILE_DOUBLE, FILE_BEDOUBLE, FILE_LEDOUBLE:
+		// Parse as float64
+		val, err := strconv.ParseFloat(strings.TrimSpace(p), 64)
+		if err != nil {
+			return fmt.Errorf("unparsable double '%s': %w", p, err)
+		}
+		m.Value.D = val
+		return nil
+		
+	case FILE_GUID:
+		// Parse GUID
+		guid, err := parseGUID(p)
+		if err != nil {
+			return fmt.Errorf("error parsing guid '%s': %w", p, err)
+		}
+		m.Value.Guid = guid
+		return nil
+		
+	default:
+		// Handle numeric types
+		if m.Reln == 'x' {
+			// 'x' means any value matches
+			return nil
+		}
+		
+		// Parse as unsigned integer with automatic base detection
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return fmt.Errorf("empty numeric value")
+		}
+		
+		// Check for negative sign
+		negative := false
+		if p[0] == '-' {
+			negative = true
+			p = p[1:]
+		}
+		
+		// Parse the number (strtoull equivalent)
+		var val uint64
+		var err error
+		
+		if strings.HasPrefix(p, "0x") || strings.HasPrefix(p, "0X") {
+			// Hexadecimal
+			val, err = strconv.ParseUint(p[2:], 16, 64)
+		} else if len(p) > 1 && p[0] == '0' {
+			// Octal
+			val, err = strconv.ParseUint(p, 8, 64)
+			if err != nil {
+				// Try decimal if octal fails
+				val, err = strconv.ParseUint(p, 10, 64)
+			}
+		} else {
+			// Decimal
+			val, err = strconv.ParseUint(p, 10, 64)
+		}
+		
+		if err != nil {
+			return fmt.Errorf("unparsable number '%s': %w", p, err)
+		}
+		
+		// Apply sign if negative
+		if negative && val != math.MaxUint64 {
+			val = uint64(-int64(val))
+		}
+		
+		// Check for overflow based on type size
+		ts := typeSize(m.Type)
+		if ts == 0 {
+			return fmt.Errorf("expected numeric type got type %d", m.Type)
+		}
+		
+		if err := checkOverflow(val, ts); err != nil {
+			return err
+		}
+		
+		// Apply sign extension
+		m.Value.Q = signExtend(m, val)
+		
+		return nil
+	}
+}
+
+// checkOverflow checks if a value overflows for the given type size
+func checkOverflow(val uint64, typeSize uint8) error {
+	var x uint64
+	var overflow bool
+	
+	switch typeSize {
+	case 1:
+		x = val & ^uint64(0xff)
+		overflow = x != 0 && x != ^uint64(0xff)
+	case 2:
+		x = val & ^uint64(0xffff)
+		overflow = x != 0 && x != ^uint64(0xffff)
+	case 4:
+		x = val & ^uint64(0xffffffff)
+		overflow = x != 0 && x != ^uint64(0xffffffff)
+	case 8:
+		// No overflow possible for 64-bit
+		overflow = false
+	default:
+		return fmt.Errorf("bad width %d", typeSize)
+	}
+	
+	if overflow {
+		return fmt.Errorf("overflow for numeric type value %#x", val)
+	}
+	
+	return nil
+}
+
+// parseGUID parses a GUID string into two uint64 values
+func parseGUID(s string) ([2]uint64, error) {
+	// GUID format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+	// Or without dashes: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+	
+	// Remove dashes if present
+	s = strings.ReplaceAll(s, "-", "")
+	
+	// Should be exactly 32 hex characters
+	if len(s) != 32 {
+		return [2]uint64{}, fmt.Errorf("invalid GUID length: %d", len(s))
+	}
+	
+	// Parse as two 64-bit values
+	high, err := strconv.ParseUint(s[:16], 16, 64)
+	if err != nil {
+		return [2]uint64{}, fmt.Errorf("invalid GUID high part: %w", err)
+	}
+	
+	low, err := strconv.ParseUint(s[16:], 16, 64)
+	if err != nil {
+		return [2]uint64{}, fmt.Errorf("invalid GUID low part: %w", err)
+	}
+	
+	return [2]uint64{high, low}, nil
+}
+
+// typeSize returns the size in bytes for a given type
+func typeSize(t uint8) uint8 {
+	switch t {
+	case FILE_BYTE:
+		return 1
+	case FILE_SHORT, FILE_BESHORT, FILE_LESHORT:
+		return 2
+	case FILE_LONG, FILE_BELONG, FILE_LELONG, FILE_MELONG,
+		FILE_FLOAT, FILE_BEFLOAT, FILE_LEFLOAT,
+		FILE_DATE, FILE_BEDATE, FILE_LEDATE, FILE_LDATE,
+		FILE_BELDATE, FILE_LELDATE, FILE_MEDATE, FILE_MELDATE,
+		FILE_MSDOSDATE, FILE_BEMSDOSDATE, FILE_LEMSDOSDATE,
+		FILE_MSDOSTIME, FILE_BEMSDOSTIME, FILE_LEMSDOSTIME:
+		return 4
+	case FILE_QUAD, FILE_BEQUAD, FILE_LEQUAD,
+		FILE_DOUBLE, FILE_BEDOUBLE, FILE_LEDOUBLE,
+		FILE_QDATE, FILE_LEQDATE, FILE_BEQDATE,
+		FILE_QLDATE, FILE_LEQLDATE, FILE_BEQLDATE,
+		FILE_QWDATE, FILE_LEQWDATE, FILE_BEQWDATE:
+		return 8
+	case FILE_GUID:
+		return 16
+	default:
+		return 0
+	}
 }

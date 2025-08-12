@@ -12,7 +12,8 @@
       "Bash(mv:*)",
       "Bash(rm:*)",
       "Bash(cat:*)",
-      "Bash(make test_golden_file:*)"
+      "Bash(make test_golden_file:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

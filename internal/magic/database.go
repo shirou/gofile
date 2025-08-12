@@ -41,6 +41,19 @@ func (db *Database) FormatForList() []string {
 				if entry.Mp == nil {
 					continue
 				}
+				
+				// Get message - if parent's message is empty, look for child's message
+				message := entry.Mp.MessageStr
+				if message == "" && len(entry.Children) > 0 {
+					// Find first child with non-empty message
+					for _, child := range entry.Children {
+						if child.Mp != nil && child.Mp.MessageStr != "" {
+							message = child.Mp.MessageStr
+							break
+						}
+					}
+				}
+				
 				// Convert MIME type byte array to string
 				mimeBytes := entry.Mp.Mimetype[:]
 				// Find null terminator
@@ -48,10 +61,28 @@ func (db *Database) FormatForList() []string {
 					mimeBytes = mimeBytes[:idx]
 				}
 				mimeStr := string(mimeBytes)
+				
+				// If parent's MIME type is empty, look for child's MIME type
+				if mimeStr == "" && len(entry.Children) > 0 {
+					for _, child := range entry.Children {
+						if child.Mp != nil {
+							childMimeBytes := child.Mp.Mimetype[:]
+							if idx := bytes.IndexByte(childMimeBytes, 0); idx >= 0 {
+								childMimeBytes = childMimeBytes[:idx]
+							}
+							childMimeStr := string(childMimeBytes)
+							if childMimeStr != "" {
+								mimeStr = childMimeStr
+								break
+							}
+						}
+					}
+				}
+				
 				info := StrengthInfo{
 					Value:      entry.Mp.Strength,
 					LineNumber: int(entry.Mp.Lineno),
-					Message:    entry.Mp.MessageStr,
+					Message:    message,
 					MimeType:   mimeStr,
 				}
 				output = append(output, info.String())
@@ -70,6 +101,19 @@ func (db *Database) FormatForList() []string {
 				if entry.Mp == nil {
 					continue
 				}
+				
+				// Get message - if parent's message is empty, look for child's message
+				message := entry.Mp.MessageStr
+				if message == "" && len(entry.Children) > 0 {
+					// Find first child with non-empty message
+					for _, child := range entry.Children {
+						if child.Mp != nil && child.Mp.MessageStr != "" {
+							message = child.Mp.MessageStr
+							break
+						}
+					}
+				}
+				
 				// Convert MIME type byte array to string
 				mimeBytes := entry.Mp.Mimetype[:]
 				// Find null terminator
@@ -77,10 +121,28 @@ func (db *Database) FormatForList() []string {
 					mimeBytes = mimeBytes[:idx]
 				}
 				mimeStr := string(mimeBytes)
+				
+				// If parent's MIME type is empty, look for child's MIME type
+				if mimeStr == "" && len(entry.Children) > 0 {
+					for _, child := range entry.Children {
+						if child.Mp != nil {
+							childMimeBytes := child.Mp.Mimetype[:]
+							if idx := bytes.IndexByte(childMimeBytes, 0); idx >= 0 {
+								childMimeBytes = childMimeBytes[:idx]
+							}
+							childMimeStr := string(childMimeBytes)
+							if childMimeStr != "" {
+								mimeStr = childMimeStr
+								break
+							}
+						}
+					}
+				}
+				
 				info := StrengthInfo{
 					Value:      entry.Mp.Strength,
 					LineNumber: int(entry.Mp.Lineno),
-					Message:    entry.Mp.MessageStr,
+					Message:    message,
 					MimeType:   mimeStr,
 				}
 				output = append(output, info.String())
