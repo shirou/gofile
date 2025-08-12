@@ -558,17 +558,12 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 			
 			// Get the raw test string (with escapes)
 			rawTestStr := l[:valueEnd]
-			
-			// Parse the raw string to get the actual value
-			parsedStr, err := getStr(rawTestStr, false)
-			if err != nil {
-				return nil, fmt.Errorf("error parsing string value: %w", err)
-			}
-			m.TestStr = parsedStr
+			m.TestStr = rawTestStr
 			
 			// Parse the test value into the appropriate Value field
-			if err := getValue(m, parsedStr); err != nil {
-				return nil, fmt.Errorf("error parsing value '%s': %w", parsedStr, err)
+			// getValue will handle escape processing for string types
+			if err := getValue(m, rawTestStr); err != nil {
+				return nil, fmt.Errorf("error parsing value '%s': %w", rawTestStr, err)
 			}
 			l = l[valueEnd:]
 		} else {
@@ -1384,6 +1379,9 @@ func getValue(m *Magic, p string) error {
 		} else {
 			m.Vallen = uint8(len(parsedStr))
 		}
+		
+		// Also update TestStr with the parsed value for string types
+		m.TestStr = parsedStr
 		
 		// For regex, we could validate it here if needed
 		// In the C code, they compile the regex to validate it

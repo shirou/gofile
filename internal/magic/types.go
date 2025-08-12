@@ -327,6 +327,9 @@ func (m *Magic) calculateValueLength() int {
 			case 'n', 't', 'r', 'b', 'f', 'v', 'a', '\\': // Standard escapes
 				i += 2
 				length++
+			case ' ', '>', '<', '&', '^', '=', '!': // Space and relation characters
+				i += 2
+				length++
 			default:
 				i += 2
 				length++
