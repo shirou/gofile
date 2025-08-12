@@ -525,20 +525,68 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 		if len(l) == 0 {
 			return nil, fmt.Errorf("incomplete magic '%s'", line)
 		}
-		// Parse the value up to whitespace
-		valueEnd := 0
-		for valueEnd < len(l) && !isSpace(l[valueEnd]) {
-			valueEnd++
+		
+		// For string types, use getStr to handle escaped spaces properly
+		isString := false
+		switch m.Type {
+		case TypeString, TypePstring, TypeBestring16, TypeLestring16,
+			TypeRegex, TypeSearch, TypeName, TypeUse, TypeDer, TypeOctal:
+			isString = true
 		}
-		if valueEnd > 0 {
-			m.TestStr = l[:valueEnd]
+		
+		if isString {
+			// For string types, we need to find the end of the value
+			// by properly handling escaped spaces
+			valueEnd := 0
+			inEscape := false
+			for valueEnd < len(l) {
+				if inEscape {
+					// Previous character was backslash
+					inEscape = false
+					valueEnd++
+				} else if l[valueEnd] == '\\' {
+					// Start of escape sequence
+					inEscape = true
+					valueEnd++
+				} else if l[valueEnd] == ' ' || l[valueEnd] == '\t' {
+					// Unescaped whitespace - end of value
+					break
+				} else {
+					valueEnd++
+				}
+			}
+			
+			// Get the raw test string (with escapes)
+			rawTestStr := l[:valueEnd]
+			
+			// Parse the raw string to get the actual value
+			parsedStr, err := getStr(rawTestStr, false)
+			if err != nil {
+				return nil, fmt.Errorf("error parsing string value: %w", err)
+			}
+			m.TestStr = parsedStr
+			
 			// Parse the test value into the appropriate Value field
-			if err := getValue(m, m.TestStr); err != nil {
-				return nil, fmt.Errorf("error parsing value '%s': %w", m.TestStr, err)
+			if err := getValue(m, parsedStr); err != nil {
+				return nil, fmt.Errorf("error parsing value '%s': %w", parsedStr, err)
 			}
 			l = l[valueEnd:]
 		} else {
-			m.TestStr = ""
+			// For non-string types, parse the value up to whitespace
+			valueEnd := 0
+			for valueEnd < len(l) && l[valueEnd] != ' ' && l[valueEnd] != '\t' {
+				valueEnd++
+			}
+			if valueEnd > 0 {
+				m.TestStr = l[:valueEnd]
+				// Parse the test value into the appropriate Value field
+				if err := getValue(m, m.TestStr); err != nil {
+					return nil, fmt.Errorf("error parsing value '%s': %w", m.TestStr, err)
+				}
+				l = l[valueEnd:]
+			} else {
+				m.TestStr = ""
+			}
 		}
 	} else {
 		// For 'x' relation, TestStr should be "x"
