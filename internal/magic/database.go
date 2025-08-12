@@ -1,6 +1,7 @@
 package magic
 
 import (
+	"bytes"
 	"fmt"
 	"sort"
 )
@@ -8,12 +9,16 @@ import (
 // SortEntriesByStrength sorts entries by strength in descending order
 func SortEntriesByStrength(entries []*Entry) {
 	sort.Slice(entries, func(i, j int) bool {
+		// Skip entries without Magic struct
+		if entries[i].Mp == nil || entries[j].Mp == nil {
+			return false
+		}
 		// Sort by strength (descending)
-		if entries[i].Strength != entries[j].Strength {
-			return entries[i].Strength > entries[j].Strength
+		if entries[i].Mp.Strength != entries[j].Mp.Strength {
+			return entries[i].Mp.Strength > entries[j].Mp.Strength
 		}
 		// If strength is equal, sort by line number (ascending)
-		return entries[i].LineNumber < entries[j].LineNumber
+		return entries[i].Mp.Lineno < entries[j].Mp.Lineno
 	})
 }
 
@@ -33,11 +38,21 @@ func (db *Database) FormatForList() []string {
 			SortEntriesByStrength(sorted)
 			
 			for _, entry := range sorted {
+				if entry.Mp == nil {
+					continue
+				}
+				// Convert MIME type byte array to string
+				mimeBytes := entry.Mp.Mimetype[:]
+				// Find null terminator
+				if idx := bytes.IndexByte(mimeBytes, 0); idx >= 0 {
+					mimeBytes = mimeBytes[:idx]
+				}
+				mimeStr := string(mimeBytes)
 				info := StrengthInfo{
-					Value:      entry.Strength,
-					LineNumber: entry.LineNumber,
-					Message:    entry.Message,
-					MimeType:   entry.MimeType,
+					Value:      entry.Mp.Strength,
+					LineNumber: int(entry.Mp.Lineno),
+					Message:    entry.Mp.MessageStr,
+					MimeType:   mimeStr,
 				}
 				output = append(output, info.String())
 			}
@@ -52,11 +67,21 @@ func (db *Database) FormatForList() []string {
 			SortEntriesByStrength(sorted)
 			
 			for _, entry := range sorted {
+				if entry.Mp == nil {
+					continue
+				}
+				// Convert MIME type byte array to string
+				mimeBytes := entry.Mp.Mimetype[:]
+				// Find null terminator
+				if idx := bytes.IndexByte(mimeBytes, 0); idx >= 0 {
+					mimeBytes = mimeBytes[:idx]
+				}
+				mimeStr := string(mimeBytes)
 				info := StrengthInfo{
-					Value:      entry.Strength,
-					LineNumber: entry.LineNumber,
-					Message:    entry.Message,
-					MimeType:   entry.MimeType,
+					Value:      entry.Mp.Strength,
+					LineNumber: int(entry.Mp.Lineno),
+					Message:    entry.Mp.MessageStr,
+					MimeType:   mimeStr,
 				}
 				output = append(output, info.String())
 			}
@@ -73,7 +98,7 @@ func CompileMagic(inputFiles []string, outputFile string) error {
 	parser := NewParser()
 	
 	for _, file := range inputFiles {
-		if err := parser.ParseFile(file); err != nil {
+		if err := parser.LoadFile(file); err != nil {
 			return fmt.Errorf("failed to parse %s: %w", file, err)
 		}
 	}
@@ -91,7 +116,7 @@ func CheckMagic(files []string) error {
 	parser := NewParser()
 	
 	for _, file := range files {
-		if err := parser.ParseFile(file); err != nil {
+		if err := parser.LoadFile(file); err != nil {
 			return fmt.Errorf("failed to parse %s: %w", file, err)
 		}
 	}

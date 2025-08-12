@@ -16,6 +16,16 @@ This project aims to implement the Linux `file` command in pure Go, providing a 
 
 The original file command source code: https://github.com/file/file/
 
+The reference implementation is available as a git submodule in this repository at:
+- **Local path**: `./github.com/file/file`
+- **Source files**: `./github.com/file/file/src/`
+- **Magic files**: `./github.com/file/file/magic/`
+
+Key source files for implementation reference:
+- `apprentice.c` - Magic file parsing and strength calculation
+- `softmagic.c` - Pattern matching logic
+- `file.h` - Type definitions and constants
+
 ## Documentation Structure
 
 The project documentation is organized in the `docs/` directory with three comprehensive specifications:

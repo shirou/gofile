@@ -1,0 +1,3 @@
+[submodule "github.com/file/file"]
+	path = github.com/file/file
+	url = https://github.com/file/file

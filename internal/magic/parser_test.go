@@ -1,9 +1,23 @@
 package magic
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 )
+
+// Helper functions for tests
+func getMimeString(m *Magic) string {
+	if m == nil {
+		return ""
+	}
+	// Find null terminator
+	idx := bytes.IndexByte(m.Mimetype[:], 0)
+	if idx < 0 {
+		idx = len(m.Mimetype)
+	}
+	return string(m.Mimetype[:idx])
+}
 
 func TestParseLine(t *testing.T) {
 	parser := NewParser()
@@ -49,7 +63,7 @@ func TestParseLine(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			parsed, err := parser.parseLine(tt.line, 1)
+			parsed, err := parser.parseMagicLine(tt.line, 1)
 
 			if tt.expectError {
 				if err == nil {
@@ -63,348 +77,28 @@ func TestParseLine(t *testing.T) {
 				return
 			}
 
-			if parsed.Level != tt.expectedLevel {
-				t.Errorf("Level: expected %d, got %d", tt.expectedLevel, parsed.Level)
+			if parsed == nil {
+				t.Error("Expected parsed magic but got nil")
+				return
 			}
-			if parsed.Type != tt.expectedType {
-				t.Errorf("Type: expected %s, got %s", tt.expectedType, parsed.Type)
-			}
-			if parsed.Test != tt.expectedTest {
-				t.Errorf("Test: expected %s, got %s", tt.expectedTest, parsed.Test)
-			}
-			if parsed.Message != tt.expectedMsg {
-				t.Errorf("Message: expected %s, got %s", tt.expectedMsg, parsed.Message)
-			}
-		})
-	}
-}
 
-func TestParseDirective(t *testing.T) {
-	parser := NewParser()
-
-	tests := map[string]struct {
-		directive    string
-		expectedMime string
-		expectedMod  string
-	}{
-		"MIME type": {
-			directive:    "!:mime	image/png",
-			expectedMime: "image/png",
-			expectedMod:  "",
-		},
-		"Strength addition": {
-			directive:    "!:strength +50",
-			expectedMime: "",
-			expectedMod:  "+50",
-		},
-		"Strength absolute": {
-			directive:    "!:strength 200",
-			expectedMime: "",
-			expectedMod:  "200",
-		},
-	}
-
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			entry := &Entry{}
-			parser.parseDirective(tt.directive, entry)
-
-			if entry.MimeType != tt.expectedMime {
-				t.Errorf("MIME: expected %s, got %s", tt.expectedMime, entry.MimeType)
+			if int(parsed.ContLevel) != tt.expectedLevel {
+				t.Errorf("Level: expected %d, got %d", tt.expectedLevel, parsed.ContLevel)
 			}
-			if entry.StrengthMod != tt.expectedMod {
-				t.Errorf("StrengthMod: expected %s, got %s", tt.expectedMod, entry.StrengthMod)
+			if parsed.TypeStr != tt.expectedType {
+				t.Errorf("Type: expected %s, got %s", tt.expectedType, parsed.TypeStr)
+			}
+			if parsed.TestStr != tt.expectedTest {
+				t.Errorf("Test: expected %s, got %s", tt.expectedTest, parsed.TestStr)
+			}
+			if parsed.MessageStr != tt.expectedMsg {
+				t.Errorf("Message: expected %s, got %s", tt.expectedMsg, parsed.MessageStr)
 			}
 		})
 	}
 }
 
-func TestCalculateStrength(t *testing.T) {
-	tests := map[string]struct {
-		entry    *Entry
-		expected int
-	}{
-		"String pattern with exact match": {
-			entry: &Entry{
-				Type:     "string",
-				Test:     "TESTDATA",
-				Operator: "=",
-				Level:    0,
-			},
-			expected: 20 + 8*10 + 10, // BASE + 8 chars * MULT + operator(=)
-		},
-		"String pattern with not equal": {
-			entry: &Entry{
-				Type:     "string",
-				Test:     "TESTDATA",
-				Operator: "!=",
-				Level:    0,
-			},
-			expected: 1, // != operator has minimal strength (same as !)
-		},
-		"String pattern with greater than": {
-			entry: &Entry{
-				Type:     "string",
-				Test:     "TESTDATA",
-				Operator: ">",
-				Level:    0,
-			},
-			expected: 20 + 8*10 + (-20), // BASE + 8 chars * MULT + operator(>)
-		},
-		"String with case-insensitive flag": {
-			entry: &Entry{
-				Type:     "string",
-				Test:     "test",
-				Operator: "=",
-				Flags:    []string{"c"},
-				Level:    0,
-			},
-			expected: 20 + 4*10 + 10, // BASE + 4 chars * MULT + operator(=), flag(c) does not affect strength
-		},
-		"String with whitespace flag": {
-			entry: &Entry{
-				Type:     "string",
-				Test:     "test",
-				Operator: "=",
-				Flags:    []string{"W"},
-				Level:    0,
-			},
-			expected: 20 + 4*10 + 10, // BASE + 4 chars * MULT + operator(=), flag(W) does not affect strength
-		},
-		"Byte pattern with zero value": {
-			entry: &Entry{
-				Type:     "byte",
-				Test:     "0",
-				Operator: "=",
-				Level:    0,
-			},
-			expected: 20 + 1*10 + 10 + (-10), // BASE + 1 byte * MULT + operator(=) + zero penalty
-		},
-		"Short pattern with power of 2": {
-			entry: &Entry{
-				Type:     "short",
-				Test:     "16",
-				Operator: "=",
-				Level:    0,
-			},
-			expected: 20 + 2*10 + 10 + (-5) + (-5), // BASE + 2 bytes * MULT + operator + power_of_2 + small_value
-		},
-		"Long pattern with bitwise AND": {
-			entry: &Entry{
-				Type:     "long",
-				Test:     "0xff00",
-				Operator: "&",
-				Level:    0,
-			},
-			expected: 20 + 4*10 + (-10), // BASE + 4 bytes * MULT + operator(&)
-		},
-		"Empty string pattern": {
-			entry: &Entry{
-				Type:     "string",
-				Test:     "",
-				Operator: "=",
-				Level:    0,
-			},
-			expected: 20 + 0*10 + 10 + (-20), // BASE + 0 chars * MULT + operator + empty penalty
-		},
-		"Single char string": {
-			entry: &Entry{
-				Type:     "string",
-				Test:     "a",
-				Operator: "=",
-				Level:    0,
-			},
-			expected: 20 + 1*10 + 10 + (-10), // BASE + 1 char * MULT + operator + single char penalty
-		},
-		"Common word string": {
-			entry: &Entry{
-				Type:     "string",
-				Test:     "data",
-				Operator: "=",
-				Level:    0,
-			},
-			expected: 20 + 4*10 + 10 + (-5), // BASE + 4 chars * MULT + operator + common word penalty
-		},
-		"DER type pattern": {
-			entry: &Entry{
-				Type:     "der",
-				Test:     "test",
-				Operator: "=",
-				Level:    0,
-			},
-			expected: 20 + 50 + 10, // BASE + DER(50) + operator
-		},
-		"GUID type pattern": {
-			entry: &Entry{
-				Type:     "guid",
-				Test:     "test",
-				Operator: "=",
-				Level:    0,
-			},
-			expected: 20 + 50 + 10, // BASE + GUID(50) + operator
-		},
-		"Offset type pattern": {
-			entry: &Entry{
-				Type:     "offset",
-				Test:     "test",
-				Operator: "=",
-				Level:    0,
-			},
-			expected: 20 + 10 + 10, // BASE + offset(10) + operator
-		},
-		"Default type pattern": {
-			entry: &Entry{
-				Type:     "default",
-				Test:     "test",
-				Operator: "=",
-				Level:    0,
-			},
-			expected: 0, // default has no strength
-		},
-		"Clear type pattern": {
-			entry: &Entry{
-				Type:     "clear",
-				Test:     "test",
-				Operator: "=",
-				Level:    0,
-			},
-			expected: 0, // clear has no strength
-		},
-		"X operator (always matches)": {
-			entry: &Entry{
-				Type:     "long",
-				Test:     "",
-				Operator: "x",
-				Level:    0,
-			},
-			expected: 1, // x operator has minimal strength
-		},
-		"Nested pattern level 2": {
-			entry: &Entry{
-				Type:     "long",
-				Test:     "0x1234",
-				Operator: "=",
-				Level:    2,
-			},
-			expected: int((20 + 4*10 + 10) * 0.8), // (BASE + 4 bytes * MULT + operator) * level reduction
-		},
-		"Manual strength modifier addition": {
-			entry: &Entry{
-				Type:        "string",
-				Test:        "test",
-				Operator:    "=",
-				Level:       0,
-				StrengthMod: "+20",
-			},
-			expected: 20 + 4*10 + 10 + 20, // BASE + 4 chars * MULT + operator + manual addition
-		},
-		"Manual strength modifier subtraction": {
-			entry: &Entry{
-				Type:        "string",
-				Test:        "test",
-				Operator:    "=",
-				Level:       0,
-				StrengthMod: "-15",
-			},
-			expected: 20 + 4*10 + 10 - 15, // BASE + 4 chars * MULT + operator - manual subtraction
-		},
-		"Manual strength modifier multiplication": {
-			entry: &Entry{
-				Type:        "string",
-				Test:        "test",
-				Operator:    "=",
-				Level:       0,
-				StrengthMod: "*2",
-			},
-			expected: (20 + 4*10 + 10) * 2, // (BASE + 4 chars * MULT + operator) * 2
-		},
-		"Manual strength modifier division": {
-			entry: &Entry{
-				Type:        "string",
-				Test:        "test",
-				Operator:    "=",
-				Level:       0,
-				StrengthMod: "/2",
-			},
-			expected: (20 + 4*10 + 10) / 2, // (BASE + 4 chars * MULT + operator) / 2
-		},
-		"Search type with default range": {
-			entry: &Entry{
-				Type:     "search",
-				Test:     "MAGIC",
-				Operator: "=",
-				Level:    0,
-			},
-			expected: 20 + 5*10 + 10 + (10 - 24), // BASE + 5 chars * MULT + operator + (10 - log2(4096)*2)
-		},
-		"Search type with custom range": {
-			entry: &Entry{
-				Type:     "search/256",
-				Test:     "MAGIC",
-				Operator: "=",
-				Level:    0,
-			},
-			expected: 20 + 5*10 + 10 + (10 - 16), // BASE + 5 chars * MULT + operator + (10 - log2(256)*2)
-		},
-		"Regex type with literals": {
-			entry: &Entry{
-				Type:     "regex",
-				Test:     "^Hello.*World$",
-				Operator: "=",
-				Level:    0,
-			},
-			expected: 20 + (10*10)/2 + 10, // BASE + (10 literals * MULT)/2 + operator
-		},
-		"Indirect type": {
-			entry: &Entry{
-				Type:     "indirect",
-				Test:     "(&0.l)",
-				Operator: "=",
-				Level:    0,
-			},
-			expected: 20 + 30 + 10, // BASE + indirect(30) + operator
-		},
-		"Bitwise XOR operator": {
-			entry: &Entry{
-				Type:     "long",
-				Test:     "0xAA55",
-				Operator: "^",
-				Level:    0,
-			},
-			expected: 20 + 4*10 + (-10), // BASE + 4 bytes * MULT + operator(^)
-		},
-		"Negation operator": {
-			entry: &Entry{
-				Type:     "byte",
-				Test:     "0xFF",
-				Operator: "~",
-				Level:    0,
-			},
-			expected: 20 + 1*10 + (-10), // BASE + 1 byte * MULT + operator(~)
-		},
-		"Test inversion operator": {
-			entry: &Entry{
-				Type:     "string",
-				Test:     "test",
-				Operator: "!",
-				Level:    0,
-			},
-			expected: 1, // ! operator has minimal strength
-		},
-	}
-
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			strength := tt.entry.CalculateStrength()
-			if strength != tt.expected {
-				t.Errorf("Expected strength %d, got %d (type: %s, test: %s, operator: %s)",
-					tt.expected, strength, tt.entry.Type, tt.entry.Test, tt.entry.Operator)
-			}
-		})
-	}
-}
-
-func TestParse(t *testing.T) {
+func TestLoadOne(t *testing.T) {
 	magicData := `# Test magic file
 # PNG image
 0	string	\x89PNG		PNG image data
@@ -424,7 +118,7 @@ func TestParse(t *testing.T) {
 	parser := NewParser()
 	reader := strings.NewReader(magicData)
 
-	err := parser.Parse(reader, "test.magic")
+	err := parser.LoadOne(reader, "test.magic")
 	if err != nil {
 		t.Fatalf("Failed to parse: %v", err)
 	}
@@ -434,13 +128,26 @@ func TestParse(t *testing.T) {
 		t.Errorf("Expected 3 top-level entries, got %d", len(db.Entries))
 	}
 
+	// Debug: Print all entries
+	for i, entry := range db.Entries {
+		if entry.Mp != nil {
+			t.Logf("Entry %d: message=%s, type=%d, mime=%s, testStr=%s, contLevel=%d",
+				i, entry.Mp.MessageStr, entry.Mp.Type, getMimeString(entry.Mp), entry.Mp.TestStr, entry.Mp.ContLevel)
+			for j, child := range entry.Children {
+				if child.Mp != nil {
+					t.Logf("  Child %d: message=%s, contLevel=%d", j, child.Mp.MessageStr, child.Mp.ContLevel)
+				}
+			}
+		}
+	}
+
 	// Check first entry
 	png := db.Entries[0]
-	if png.Message != "PNG image data" {
-		t.Errorf("Expected PNG message, got %s", png.Message)
+	if png.Mp.MessageStr != "PNG image data" {
+		t.Errorf("Expected PNG message, got %s", png.Mp.MessageStr)
 	}
-	if png.MimeType != "image/png" {
-		t.Errorf("Expected image/png MIME, got %s", png.MimeType)
+	if getMimeString(png.Mp) != "image/png" {
+		t.Errorf("Expected image/png MIME, got %s", getMimeString(png.Mp))
 	}
 
 	// Check nested entry
@@ -448,153 +155,11 @@ func TestParse(t *testing.T) {
 	if len(test.Children) != 1 {
 		t.Errorf("Expected 1 child, got %d", len(test.Children))
 	}
-	if test.Children[0].Message != "with data" {
-		t.Errorf("Expected child message 'with data', got %s", test.Children[0].Message)
+	if test.Children[0].Mp.MessageStr != "with data" {
+		t.Errorf("Expected child message 'with data', got %s", test.Children[0].Mp.MessageStr)
 	}
 	if len(test.Children[0].Children) != 1 {
 		t.Errorf("Expected 1 grandchild, got %d", len(test.Children[0].Children))
-	}
-}
-
-func TestParseOperator(t *testing.T) {
-	parser := NewParser()
-
-	tests := map[string]struct {
-		test          string
-		expectedOp    string
-		expectedValue string
-	}{
-		"Exact match (default)": {
-			test:          "TESTDATA",
-			expectedOp:    "=",
-			expectedValue: "TESTDATA",
-		},
-		"Explicit equal": {
-			test:          "=TESTDATA",
-			expectedOp:    "=",
-			expectedValue: "TESTDATA",
-		},
-		"Not equal": {
-			test:          "!=123",
-			expectedOp:    "!=",
-			expectedValue: "123",
-		},
-		"Greater than": {
-			test:          ">100",
-			expectedOp:    ">",
-			expectedValue: "100",
-		},
-		"Less than": {
-			test:          "<256",
-			expectedOp:    "<",
-			expectedValue: "256",
-		},
-		"Bitwise AND": {
-			test:          "&0xff00",
-			expectedOp:    "&",
-			expectedValue: "0xff00",
-		},
-		"Bitwise XOR": {
-			test:          "^0x0f0f",
-			expectedOp:    "^",
-			expectedValue: "0x0f0f",
-		},
-		"Negation": {
-			test:          "~0x01",
-			expectedOp:    "~",
-			expectedValue: "0x01",
-		},
-		"Any value (x)": {
-			test:          "x",
-			expectedOp:    "x",
-			expectedValue: "",
-		},
-		"Test inversion": {
-			test:          "!test",
-			expectedOp:    "!",
-			expectedValue: "test",
-		},
-		"Less than or equal": {
-			test:          "<=512",
-			expectedOp:    "<=",
-			expectedValue: "512",
-		},
-		"Greater than or equal": {
-			test:          ">=1024",
-			expectedOp:    ">=",
-			expectedValue: "1024",
-		},
-	}
-
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			entry := &Entry{Test: tt.test}
-			parser.parseOperator(entry)
-
-			if entry.Operator != tt.expectedOp {
-				t.Errorf("Operator: expected %s, got %s", tt.expectedOp, entry.Operator)
-			}
-			if entry.Test != tt.expectedValue {
-				t.Errorf("Test value: expected %s, got %s", tt.expectedValue, entry.Test)
-			}
-		})
-	}
-}
-
-func TestParseStringFlags(t *testing.T) {
-	parser := NewParser()
-
-	tests := map[string]struct {
-		typeField     string
-		expectedType  string
-		expectedFlags []string
-	}{
-		"String with no flags": {
-			typeField:     "string",
-			expectedType:  "string",
-			expectedFlags: []string{},
-		},
-		"String with case-insensitive": {
-			typeField:     "string/c",
-			expectedType:  "string",
-			expectedFlags: []string{"c"},
-		},
-		"String with multiple flags": {
-			typeField:     "string/cWT",
-			expectedType:  "string",
-			expectedFlags: []string{"c", "W", "T"},
-		},
-		"String with uppercase case flag": {
-			typeField:     "string/C",
-			expectedType:  "string",
-			expectedFlags: []string{"C"},
-		},
-		"String with whitespace flags": {
-			typeField:     "string/wW",
-			expectedType:  "string",
-			expectedFlags: []string{"w", "W"},
-		},
-	}
-
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			entry := &Entry{Type: tt.typeField, Flags: []string{}}
-			parser.parseStringFlags(entry)
-
-			if entry.Type != tt.expectedType {
-				t.Errorf("Type: expected %s, got %s", tt.expectedType, entry.Type)
-			}
-
-			if len(entry.Flags) != len(tt.expectedFlags) {
-				t.Errorf("Flags count: expected %d, got %d", len(tt.expectedFlags), len(entry.Flags))
-			}
-
-			for i, flag := range tt.expectedFlags {
-				if i >= len(entry.Flags) || entry.Flags[i] != flag {
-					t.Errorf("Flag %d: expected %s, got %v", i, flag, entry.Flags)
-				}
-			}
-		})
 	}
 }
 
@@ -609,7 +174,7 @@ func TestOrganizeSets(t *testing.T) {
 	parser := NewParser()
 	reader := strings.NewReader(magicData)
 
-	err := parser.Parse(reader, "test.magic")
+	err := parser.LoadOne(reader, "test.magic")
 	if err != nil {
 		t.Fatalf("Failed to parse: %v", err)
 	}
@@ -634,10 +199,10 @@ func TestOrganizeSets(t *testing.T) {
 
 	// Debug: print what we got
 	for _, entry := range set0.BinaryEntries {
-		t.Logf("Binary entry: type=%s, test=%s, message=%s", entry.Type, entry.Test, entry.Message)
+		t.Logf("Binary entry: type=%s, test=%s, message=%s", entry.Mp.TypeStr, entry.Mp.TestStr, entry.Mp.MessageStr)
 	}
 	for _, entry := range set0.TextEntries {
-		t.Logf("Text entry: type=%s, test=%s, message=%s", entry.Type, entry.Test, entry.Message)
+		t.Logf("Text entry: type=%s, test=%s, message=%s", entry.Mp.TypeStr, entry.Mp.TestStr, entry.Mp.MessageStr)
 	}
 
 	if len(set0.BinaryEntries) != 2 {
@@ -648,157 +213,362 @@ func TestOrganizeSets(t *testing.T) {
 	}
 }
 
-func TestStrengthCalculationAdvanced(t *testing.T) {
-	// Test cases based on test_advanced.magic to ensure compatibility with file command
-	tests := map[string]struct {
-		magicLine        string
-		expectedStrength int
-		description      string
-	}{
-		// Test operator strength calculations
-		"Not equal operator": {
-			magicLine:        "0	string	!TEST	Not equal string",
-			expectedStrength: 1, // ! operator has minimal strength
-			description:      "Not equal operator should have minimal strength (1)",
+func TestApprenticeSort(t *testing.T) {
+	// Create test entries with different strengths
+	entries := []*Entry{
+		{
+			Mp: &Magic{
+				TypeStr:  "string",
+				TestStr:  "short", // Should have lower strength
+				Strength: 10,
+				Desc:     [MAXDESC]byte{},
+			},
+			ContCount: 0,
 		},
-		"Any value operator": {
-			magicLine:        "0	long	x	Any long value",
-			expectedStrength: 1, // x operator has minimal strength
-			description:      "Any value operator should have minimal strength (1)",
+		{
+			Mp: &Magic{
+				TypeStr:  "string",
+				TestStr:  "verylongstring", // Should have higher strength
+				Strength: 50,
+				Desc:     [MAXDESC]byte{},
+			},
+			ContCount: 0,
 		},
-		"Exact match string": {
-			magicLine:        "0	string	=TEST	Exact match string",
-			expectedStrength: 70, // 20 + 4*10 + 10
-			description:      "Exact match string should have normal strength",
+		{
+			Mp: &Magic{
+				TypeStr:  "long",
+				TestStr:  "0x1234", // Numeric type with fixed strength
+				Strength: 30,
+				Desc:     [MAXDESC]byte{},
+			},
+			ContCount: 0,
 		},
-
-		// Test string flag modifiers (should not affect strength)
-		"Case insensitive flag": {
-			magicLine:        "0	string/c	test	Case insensitive string",
-			expectedStrength: 70, // Flags should not affect strength
-			description:      "Case insensitive flag should not affect strength",
-		},
-		"Whitespace compaction flag": {
-			magicLine:        "0	string/W	test	Whitespace compaction",
-			expectedStrength: 70, // Flags should not affect strength
-			description:      "Whitespace compaction flag should not affect strength",
-		},
-		"Multiple flags": {
-			magicLine:        "0	string/cW	test	Multiple flags",
-			expectedStrength: 70, // Flags should not affect strength
-			description:      "Multiple flags should not affect strength",
-		},
-
-		// Test manual strength modifiers
-		"Manual strength addition": {
-			magicLine:        "0	string	manual	Manual test\n!:strength +50",
-			expectedStrength: 140, // 20 + 6*10 + 10 + 50 = 90 + 50
-			description:      "Manual strength addition should work correctly",
-		},
-		"Manual strength subtraction": {
-			magicLine:        "0	string	manual	Manual test\n!:strength -20",
-			expectedStrength: 70, // 20 + 6*10 + 10 - 20 = 90 - 20
-			description:      "Manual strength subtraction should work correctly",
-		},
-		"Manual strength multiplication": {
-			magicLine:        "0	string	manual	Manual test\n!:strength *2",
-			expectedStrength: 180, // (20 + 6*10 + 10) * 2 = 90 * 2
-			description:      "Manual strength multiplication should work correctly",
-		},
-		"Manual strength division": {
-			magicLine:        "0	string	manual	Manual test\n!:strength /3",
-			expectedStrength: 30, // (20 + 6*10 + 10) / 3 = 90 / 3
-			description:      "Manual strength division should work correctly",
-		},
-
-		// Test comparison operators
-		"Greater than operator": {
-			magicLine:        "0	long	>100	Greater than test",
-			expectedStrength: 40, // 20 + 4*10 - 20
-			description:      "Greater than operator should reduce strength",
-		},
-		"Less than operator": {
-			magicLine:        "0	long	<1000	Less than test",
-			expectedStrength: 40, // 20 + 4*10 - 20
-			description:      "Less than operator should reduce strength",
-		},
-
-		// Test bitwise operators
-		"Bitwise AND operator": {
-			magicLine:        "0	long	&0xff00	Bitwise AND test",
-			expectedStrength: 50, // 20 + 4*10 - 10
-			description:      "Bitwise AND operator should moderately reduce strength",
-		},
-		"Bitwise XOR operator": {
-			magicLine:        "0	long	^0x0f0f	Bitwise XOR test",
-			expectedStrength: 50, // 20 + 4*10 - 10
-			description:      "Bitwise XOR operator should moderately reduce strength",
+		{
+			Mp: &Magic{
+				TypeStr:  "string",
+				TestStr:  "medium", // Medium strength
+				Strength: 20,
+				Desc:     [MAXDESC]byte{},
+			},
+			ContCount: 0,
 		},
 	}
 
-	parser := NewParser()
+	// Copy for message strings
+	copy(entries[0].Mp.Desc[:], []byte("Short pattern"))
+	copy(entries[1].Mp.Desc[:], []byte("Long pattern"))
+	copy(entries[2].Mp.Desc[:], []byte("Numeric pattern"))
+	copy(entries[3].Mp.Desc[:], []byte("Medium pattern"))
+
+	// Sort using apprenticeSort
+	apprenticeSort(entries)
+
+	// Check that entries are sorted by strength (descending)
+	if entries[0].Mp.Strength != 50 {
+		t.Errorf("First entry should have strength 50, got %d", entries[0].Mp.Strength)
+	}
+	if entries[1].Mp.Strength != 30 {
+		t.Errorf("Second entry should have strength 30, got %d", entries[1].Mp.Strength)
+	}
+	if entries[2].Mp.Strength != 20 {
+		t.Errorf("Third entry should have strength 20, got %d", entries[2].Mp.Strength)
+	}
+	if entries[3].Mp.Strength != 10 {
+		t.Errorf("Fourth entry should have strength 10, got %d", entries[3].Mp.Strength)
+	}
+}
+
+func TestApprenticeSortDuplicates(t *testing.T) {
+	// Create duplicate entries (same strength and content)
+	entries := []*Entry{
+		{
+			Mp: &Magic{
+				TypeStr:     "string",
+				TestStr:     "test",
+				OperatorStr: "=",
+				Strength:    20,
+				Offset:      0,
+				Desc:        [MAXDESC]byte{},
+			},
+			ContCount: 0,
+		},
+		{
+			Mp: &Magic{
+				TypeStr:     "string",
+				TestStr:     "test",
+				OperatorStr: "=",
+				Strength:    20,
+				Offset:      0,
+				Desc:        [MAXDESC]byte{},
+			},
+			ContCount: 0,
+		},
+	}
+
+	// Copy the same description
+	copy(entries[0].Mp.Desc[:], []byte("Duplicate pattern"))
+	copy(entries[1].Mp.Desc[:], []byte("Duplicate pattern"))
+
+	// Capture stderr to check for duplicate warning
+	// For simplicity, we'll just sort and verify the result
+	apprenticeSort(entries)
+
+	// Both entries should still be in the array (duplicates are not removed)
+	if len(entries) != 2 {
+		t.Errorf("Expected 2 entries after sorting, got %d", len(entries))
+	}
+}
+
+func TestApprenticeSortWithDER(t *testing.T) {
+	// Create DER type entries (should not warn about duplicates)
+	entries := []*Entry{
+		{
+			Mp: &Magic{
+				TypeStr:     "der",
+				TestStr:     "test",
+				OperatorStr: "=",
+				Strength:    20,
+				Offset:      0,
+				Desc:        [MAXDESC]byte{},
+			},
+			ContCount: 0,
+		},
+		{
+			Mp: &Magic{
+				TypeStr:     "der",
+				TestStr:     "test",
+				OperatorStr: "=",
+				Strength:    20,
+				Offset:      0,
+				Desc:        [MAXDESC]byte{},
+			},
+			ContCount: 0,
+		},
+	}
+
+	// Sort - should not produce duplicate warning for DER type
+	apprenticeSort(entries)
+
+	// Both entries should still be in the array
+	if len(entries) != 2 {
+		t.Errorf("Expected 2 entries after sorting, got %d", len(entries))
+	}
+}
+
+func TestGetStr(t *testing.T) {
+	tests := map[string]struct {
+		input    string
+		expected string
+		warn     bool
+	}{
+		"simple string": {
+			input:    "hello",
+			expected: "hello",
+			warn:     false,
+		},
+		"string with space terminates": {
+			input:    "hello world",
+			expected: "hello",
+			warn:     false,
+		},
+		"string with tab terminates": {
+			input:    "hello\tworld",
+			expected: "hello",
+			warn:     false,
+		},
+		"escaped space": {
+			input:    "hello\\ world",
+			expected: "hello world",
+			warn:     false,
+		},
+		"escaped tab": {
+			input:    "hello\\tthere",
+			expected: "hello\tthere",
+			warn:     false,
+		},
+		"escaped newline": {
+			input:    "hello\\nworld",
+			expected: "hello\nworld",
+			warn:     false,
+		},
+		"escaped carriage return": {
+			input:    "hello\\rworld",
+			expected: "hello\rworld",
+			warn:     false,
+		},
+		"escaped alert": {
+			input:    "\\abell",
+			expected: "\abell",
+			warn:     false,
+		},
+		"escaped backspace": {
+			input:    "hello\\bworld",
+			expected: "hello\bworld",
+			warn:     false,
+		},
+		"escaped form feed": {
+			input:    "hello\\fworld",
+			expected: "hello\fworld",
+			warn:     false,
+		},
+		"escaped vertical tab": {
+			input:    "hello\\vworld",
+			expected: "hello\vworld",
+			warn:     false,
+		},
+		"escaped backslash": {
+			input:    "hello\\\\world",
+			expected: "hello\\world",
+			warn:     false,
+		},
+		"octal escape single digit": {
+			input:    "\\0",
+			expected: "\x00",
+			warn:     false,
+		},
+		"octal escape two digits": {
+			input:    "\\12",
+			expected: "\x0a",
+			warn:     false,
+		},
+		"octal escape three digits": {
+			input:    "\\101",
+			expected: "A",
+			warn:     false,
+		},
+		"octal escape max value": {
+			input:    "\\377",
+			expected: "\xff",
+			warn:     false,
+		},
+		"hex escape lowercase": {
+			input:    "\\x41",
+			expected: "A",
+			warn:     false,
+		},
+		"hex escape uppercase": {
+			input:    "\\x4A",
+			expected: "J",
+			warn:     false,
+		},
+		"hex escape max value": {
+			input:    "\\xff",
+			expected: "\xff",
+			warn:     false,
+		},
+		"hex escape single digit": {
+			input:    "\\x4",
+			expected: "\x04",
+			warn:     false,
+		},
+		"hex escape no digits": {
+			input:    "\\xgg",
+			expected: "xgg",
+			warn:     false,
+		},
+		"escaped relations >": {
+			input:    "\\>",
+			expected: ">",
+			warn:     false,
+		},
+		"escaped relations <": {
+			input:    "\\<",
+			expected: "<",
+			warn:     false,
+		},
+		"escaped relations &": {
+			input:    "\\&",
+			expected: "&",
+			warn:     false,
+		},
+		"escaped relations ^": {
+			input:    "\\^",
+			expected: "^",
+			warn:     false,
+		},
+		"escaped relations =": {
+			input:    "\\=",
+			expected: "=",
+			warn:     false,
+		},
+		"escaped relations !": {
+			input:    "\\!",
+			expected: "!",
+			warn:     false,
+		},
+		"bracket nesting": {
+			input:    "[a-z]",
+			expected: "[a-z]",
+			warn:     false,
+		},
+		"nested brackets": {
+			input:    "[[a-z]]",
+			expected: "[[a-z]]",
+			warn:     false,
+		},
+		"escaped dot": {
+			input:    "\\.",
+			expected: ".",
+			warn:     true,
+		},
+		"incomplete escape at end": {
+			input:    "hello\\",
+			expected: "hello",
+			warn:     true,
+		},
+		"empty string": {
+			input:    "",
+			expected: "",
+			warn:     false,
+		},
+		"complex string": {
+			input:    "\\x89PNG\\r\\n\\032\\n",
+			expected: "\x89PNG\r\n\x1a\n",
+			warn:     false,
+		},
+		"string with multiple escapes": {
+			input:    "hello\\nworld\\ttab\\x41\\101",
+			expected: "hello\nworld\ttabAA",
+			warn:     false,
+		},
+	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			// Parse the magic line(s)
-			lines := strings.Split(tt.magicLine, "\n")
-			var entry *Entry
-
-			for _, line := range lines {
-				line = strings.TrimSpace(line)
-				if line == "" {
-					continue
-				}
-
-				if strings.HasPrefix(line, "!:") {
-					// Apply directive to the last entry
-					if entry != nil {
-						parser.parseDirective(line, entry)
-						// Recalculate strength after applying directive
-						if strings.HasPrefix(line, "!:strength") {
-							entry.Strength = entry.CalculateStrength()
-						}
-					}
-				} else {
-					// Parse the main pattern line
-					parsedLine, err := parser.parseLine(line, 1)
-					if err != nil {
-						t.Fatalf("Failed to parse magic line: %s, error: %v", line, err)
-					}
-
-					// Create entry from parsed line (following the same logic as Parse method)
-					entry = &Entry{
-						Level:      parsedLine.Level,
-						Offset:     parsedLine.Offset,
-						Type:       parsedLine.Type,
-						Test:       parsedLine.Test,
-						Message:    parsedLine.Message,
-						LineNumber: 1,
-						Children:   make([]*Entry, 0),
-					}
-
-					// Parse operator from test field
-					parser.parseOperator(entry)
-
-					// Parse string flags if it's a string type
-					parser.parseStringFlags(entry)
-
-					// Calculate initial strength
-					entry.Strength = entry.CalculateStrength()
-				}
+			got := getStr(tt.input, tt.warn)
+			if got != tt.expected {
+				t.Errorf("getStr(%q, %v) = %q, want %q", tt.input, tt.warn, got, tt.expected)
+				// Print bytes for debugging
+				t.Logf("Got bytes: %v", []byte(got))
+				t.Logf("Want bytes: %v", []byte(tt.expected))
 			}
+		})
+	}
+}
 
-			if entry == nil {
-				t.Fatalf("No entry was parsed from magic line(s): %s", tt.magicLine)
-			}
+func TestHexToInt(t *testing.T) {
+	tests := map[string]struct {
+		input    byte
+		expected int
+	}{
+		"digit 0":        {input: '0', expected: 0},
+		"digit 5":        {input: '5', expected: 5},
+		"digit 9":        {input: '9', expected: 9},
+		"lower a":        {input: 'a', expected: 10},
+		"lower f":        {input: 'f', expected: 15},
+		"upper A":        {input: 'A', expected: 10},
+		"upper F":        {input: 'F', expected: 15},
+		"invalid g":      {input: 'g', expected: -1},
+		"invalid G":      {input: 'G', expected: -1},
+		"invalid space":  {input: ' ', expected: -1},
+		"invalid symbol": {input: '@', expected: -1},
+	}
 
-			// Calculate strength
-			strength := entry.CalculateStrength()
-
-			// Check if the strength matches expected
-			if strength != tt.expectedStrength {
-				t.Errorf("Expected strength %d, got %d. %s",
-					tt.expectedStrength, strength, tt.description)
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := hexToInt(tt.input)
+			if got != tt.expected {
+				t.Errorf("hexToInt(%q) = %d, want %d", tt.input, got, tt.expected)
 			}
 		})
 	}

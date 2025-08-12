@@ -6,24 +6,105 @@ import (
 	"strings"
 )
 
-// Entry represents a single magic entry from a magic file
-type Entry struct {
-	Level       int      // Indentation level (0 for primary, >0 for continuation)
-	Offset      string   // Offset specification (can be complex expression)
-	Type        string   // Data type (byte, short, long, string, etc.)
-	Operator    string   // Comparison operator (=, !=, <, >, &, ^, ~, x, !)
-	Test        string   // Test value
-	Message     string   // Message to output when matched
-	Strength    int      // Calculated strength value
+// Constants matching file.h definitions
+const (
+	MAXDESC   = 64  // Maximum length of text description
+	MAXMIME   = 80  // Maximum length of MIME type
+	MAXstring = 128 // Maximum length of string types
+)
+
+// ValueType represents the union VALUETYPE from file.h
+type ValueType struct {
+	// Numeric values
+	B  uint8  // unsigned byte
+	H  uint16 // unsigned short
+	L  uint32 // unsigned long
+	Q  uint64 // unsigned quad
+	Sb int8   // signed byte
+	Sh int16  // signed short
+	Sl int32  // signed long
+	Sq int64  // signed quad
+
+	// Fixed-endian arrays (for explicit byte order)
+	Hs [2]uint8 // 2 bytes of fixed-endian "short"
+	Hl [4]uint8 // 4 bytes of fixed-endian "long"
+	Hq [8]uint8 // 8 bytes of fixed-endian "quad"
+
+	// String/pattern values
+	S  [MAXstring]byte // Search string or regex pattern
+	Us [MAXstring]byte // Unsigned version for binary data
+
+	// GUID
+	Guid [2]uint64
+
+	// Floating point
+	F float32
+	D float64
+}
+
+// Magic represents the struct magic from file.h
+// This is the core structure that holds a single magic pattern
+type Magic struct {
+	// Word 1
+	Flag      uint16 // Flags like INDIR, OFFADD, UNSIGNED, etc.
+	ContLevel uint8  // Level of ">" continuation
+	Factor    uint8  // Strength factor
+
+	// Word 2
+	Reln   uint8 // Relation (0=eq, '>'=gt, etc)
+	Vallen uint8 // Length of string value, if any
+	Type   uint8 // Comparison type (FILE_*)
+	InType uint8 // Type of indirection
+
+	// Word 3
+	InOp     uint8 // Operator for indirection
+	MaskOp   uint8 // Operator for mask
+	Cond     uint8 // Conditional type (or dummy if not enabled)
+	FactorOp uint8 // Operator for factor
+
+	// Word 4
+	Offset int32 // Offset to magic number
+
+	// Word 5
+	InOffset int32 // Offset from indirection
+
+	// Word 6
+	Lineno uint32 // Line number in magic file
+
+	// Word 7,8 - Union for mask/count/flags
+	Mask  uint64 // For use with numeric and date types
+	Count uint32 // Repeat/line count
+	Flags uint32 // Modifier flags
+
+	// Words 9-24
+	Value ValueType // Either number or string
+
+	// Words 25-40
+	Desc [MAXDESC]byte // Description
+
+	// Words 41-60
+	Mimetype [MAXMIME]byte // MIME type
+
+	// Words 61-62
+	Apple [8]byte // APPLE CREATOR/TYPE
+
+	// Words 63-78
+	Ext [64]byte // Extensions
+
+	// Additional Go-specific fields for parsing convenience
+	Strength   int      // Calculated strength value
+	SourceFile string   // Source file name (for debugging)
+	TestType   TestType // BINTEST or TEXTTEST
+	IsNameType bool     // True if this is a FILE_NAME type pattern
+
+	// Original parsed values (for easier handling)
+	OffsetStr   string   // Original offset specification (can be complex expression)
+	TypeStr     string   // Original type string (before conversion to uint8)
+	OperatorStr string   // Original operator string
+	TestStr     string   // Original test value string
+	MessageStr  string   // Original message string
 	StrengthMod string   // Strength modifier from !:strength directive
-	LineNumber  int      // Line number in source file
-	SourceFile  string   // Source file name
-	Flags       []string // Modifier flags
-	MimeType    string   // MIME type if specified
-	Extensions  []string // File extensions if specified
-	Flag        TestType // BINTEST or TEXTTEST
-	IsNameType  bool     // True if this is a FILE_NAME type pattern
-	Children    []*Entry // Child entries (continuation lines)
+	Extensions  []string // Parsed file extensions
 }
 
 // Database represents a collection of magic entries
@@ -66,19 +147,11 @@ func (s *StrengthInfo) String() string {
 	return fmt.Sprintf("Strength = %3d@%d: %s%s", s.Value, s.LineNumber, s.Message, mime)
 }
 
-// getStringFlagModifier returns strength modifiers for string flags
-func (e *Entry) getStringFlagModifier() int {
-	// String flags do not affect strength in the original file command
-	// They only affect how the string matching is performed
-	// (case sensitivity, whitespace handling, etc.)
-	return 0
-}
-
-// GetTestType determines whether this entry represents a binary or text pattern
+// GetTestType determines whether this magic represents a binary or text pattern
 // This implements the same logic as the original file command's set_test_type function
-func (e *Entry) GetTestType() TestType {
+func (m *Magic) GetTestType() TestType {
 	// Handle types with parameters (e.g., search/256)
-	baseType := e.Type
+	baseType := m.TypeStr
 	if idx := strings.Index(baseType, "/"); idx > 0 {
 		baseType = baseType[:idx]
 	}
@@ -100,24 +173,26 @@ func (e *Entry) GetTestType() TestType {
 
 	case TypeString, TypePstring, TypeBestring16, TypeLestring16:
 		// Check for 't' flag which forces TEXTTEST
-		for _, flag := range e.Flags {
-			if flag == "t" || flag == "T" {
-				return TEXTTEST
-			}
+		if m.Flags&STRING_TEXTTEST != 0 {
+			return TEXTTEST
 		}
-		// Regular strings default to binary (matching original file command)
+		// Check for 'b' flag which forces BINTEST
+		if m.Flags&STRING_BINTEST != 0 {
+			return BINTEST
+		}
+		// Default to binary (matching original file command)
 		return BINTEST
 
 	case TypeRegex, TypeSearch:
 		// For regex and search types, use UTF-8 validity check
 		// (matching original file command's file_looks_utf8 logic)
-		if e.Test != "" {
+		if m.TestStr != "" {
 			// Check if content looks like valid UTF-8 / printable text
-			if containsBinaryBytes(e.Test) {
+			if containsBinaryBytes(m.TestStr) {
 				return BINTEST
 			}
 			// If it's mostly printable, classify as text
-			if isPrintableText(e.Test) {
+			if isPrintableText(m.TestStr) {
 				return TEXTTEST
 			}
 		}
@@ -217,9 +292,9 @@ func isPrintableText(test string) bool {
 }
 
 // calculateValueLength calculates the actual byte length of the test value
-func (e *Entry) calculateValueLength() int {
+func (m *Magic) calculateValueLength() int {
 	// Handle types with parameters (e.g., search/256)
-	baseType := e.Type
+	baseType := m.TypeStr
 	if idx := strings.Index(baseType, "/"); idx > 0 {
 		baseType = baseType[:idx]
 	}
@@ -231,12 +306,12 @@ func (e *Entry) calculateValueLength() int {
 	// Parse escape sequences to get actual byte count
 	length := 0
 	i := 0
-	for i < len(e.Test) {
-		if e.Test[i] == '\\' && i+1 < len(e.Test) {
-			next := e.Test[i+1]
+	for i < len(m.TestStr) {
+		if m.TestStr[i] == '\\' && i+1 < len(m.TestStr) {
+			next := m.TestStr[i+1]
 			switch next {
 			case 'x': // Hex escape \xHH
-				if i+3 < len(e.Test) {
+				if i+3 < len(m.TestStr) {
 					i += 4 // Skip \xHH
 					length++
 				} else {
@@ -244,7 +319,7 @@ func (e *Entry) calculateValueLength() int {
 				}
 			case '0', '1', '2', '3', '4', '5', '6', '7': // Octal escape \nnn
 				j := i + 1
-				for j < len(e.Test) && j < i+4 && e.Test[j] >= '0' && e.Test[j] <= '7' {
+				for j < len(m.TestStr) && j < i+4 && m.TestStr[j] >= '0' && m.TestStr[j] <= '7' {
 					j++
 				}
 				i = j

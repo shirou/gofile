@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	
+
 	"github.com/shirou/gofile/internal/magic"
 )
 
@@ -35,12 +35,12 @@ func New() (*File, error) {
 func NewWithOptions(opts Options) (*File, error) {
 	var db *magic.Database
 	var err error
-	
+
 	if len(opts.MagicFiles) > 0 {
 		// Load specified magic files
 		parser := magic.NewParser()
 		for _, path := range opts.MagicFiles {
-			if err := parser.ParseFile(path); err != nil {
+			if err := parser.LoadFile(path); err != nil {
 				if opts.Debug {
 					fmt.Fprintf(os.Stderr, "Warning: failed to parse %s: %v\n", path, err)
 				}
@@ -55,7 +55,7 @@ func NewWithOptions(opts Options) (*File, error) {
 			return nil, fmt.Errorf("failed to load magic files: %w", err)
 		}
 	}
-	
+
 	return &File{
 		database: db,
 		options:  opts,
@@ -69,12 +69,12 @@ func (f *File) IdentifyFile(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot stat %s: %w", path, err)
 	}
-	
+
 	// Handle special file types
 	if info.IsDir() {
 		return "directory", nil
 	}
-	
+
 	if info.Mode()&os.ModeSymlink != 0 && !f.options.FollowSymlinks {
 		target, _ := os.Readlink(path)
 		if target != "" {
@@ -82,29 +82,29 @@ func (f *File) IdentifyFile(path string) (string, error) {
 		}
 		return "symbolic link", nil
 	}
-	
+
 	if info.Mode()&os.ModeDevice != 0 {
 		if info.Mode()&os.ModeCharDevice != 0 {
 			return "character special", nil
 		}
 		return "block special", nil
 	}
-	
+
 	if info.Mode()&os.ModeNamedPipe != 0 {
 		return "fifo (named pipe)", nil
 	}
-	
+
 	if info.Mode()&os.ModeSocket != 0 {
 		return "socket", nil
 	}
-	
+
 	// Regular file - open and identify
 	file, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("cannot open %s: %w", path, err)
 	}
 	defer file.Close()
-	
+
 	return f.Identify(file)
 }
 
@@ -116,21 +116,21 @@ func (f *File) Identify(r io.Reader) (string, error) {
 	if err != nil && err != io.EOF {
 		return "", fmt.Errorf("failed to read data: %w", err)
 	}
-	
+
 	if n == 0 {
 		return "empty", nil
 	}
-	
+
 	buffer = buffer[:n]
-	
+
 	// TODO: Implement actual magic pattern matching
 	// For now, return a simple detection based on common patterns
-	
+
 	// Check for text
 	if isText(buffer) {
 		return "ASCII text", nil
 	}
-	
+
 	// Default
 	return "data", nil
 }
