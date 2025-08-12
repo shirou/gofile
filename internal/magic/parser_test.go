@@ -360,182 +360,227 @@ func TestGetStr(t *testing.T) {
 		input    string
 		expected string
 		warn     bool
+		wantErr  bool
 	}{
 		"simple string": {
 			input:    "hello",
 			expected: "hello",
 			warn:     false,
+			wantErr:  false,
 		},
 		"string with space terminates": {
 			input:    "hello world",
 			expected: "hello",
 			warn:     false,
+			wantErr:  false,
 		},
 		"string with tab terminates": {
 			input:    "hello\tworld",
 			expected: "hello",
 			warn:     false,
+		wantErr:  false,
 		},
 		"escaped space": {
 			input:    "hello\\ world",
 			expected: "hello world",
 			warn:     false,
+		wantErr:  false,
 		},
 		"escaped tab": {
 			input:    "hello\\tthere",
 			expected: "hello\tthere",
 			warn:     false,
+		wantErr:  false,
 		},
 		"escaped newline": {
 			input:    "hello\\nworld",
 			expected: "hello\nworld",
 			warn:     false,
+		wantErr:  false,
 		},
 		"escaped carriage return": {
 			input:    "hello\\rworld",
 			expected: "hello\rworld",
 			warn:     false,
+		wantErr:  false,
 		},
 		"escaped alert": {
 			input:    "\\abell",
 			expected: "\abell",
 			warn:     false,
+		wantErr:  false,
 		},
 		"escaped backspace": {
 			input:    "hello\\bworld",
 			expected: "hello\bworld",
 			warn:     false,
+		wantErr:  false,
 		},
 		"escaped form feed": {
 			input:    "hello\\fworld",
 			expected: "hello\fworld",
 			warn:     false,
+		wantErr:  false,
 		},
 		"escaped vertical tab": {
 			input:    "hello\\vworld",
 			expected: "hello\vworld",
 			warn:     false,
+		wantErr:  false,
 		},
 		"escaped backslash": {
 			input:    "hello\\\\world",
 			expected: "hello\\world",
 			warn:     false,
+		wantErr:  false,
 		},
 		"octal escape single digit": {
 			input:    "\\0",
 			expected: "\x00",
 			warn:     false,
+		wantErr:  false,
 		},
 		"octal escape two digits": {
 			input:    "\\12",
 			expected: "\x0a",
 			warn:     false,
+		wantErr:  false,
 		},
 		"octal escape three digits": {
 			input:    "\\101",
 			expected: "A",
 			warn:     false,
+		wantErr:  false,
 		},
 		"octal escape max value": {
 			input:    "\\377",
 			expected: "\xff",
 			warn:     false,
+		wantErr:  false,
 		},
 		"hex escape lowercase": {
 			input:    "\\x41",
 			expected: "A",
 			warn:     false,
+		wantErr:  false,
 		},
 		"hex escape uppercase": {
 			input:    "\\x4A",
 			expected: "J",
 			warn:     false,
+		wantErr:  false,
 		},
 		"hex escape max value": {
 			input:    "\\xff",
 			expected: "\xff",
 			warn:     false,
+		wantErr:  false,
 		},
 		"hex escape single digit": {
 			input:    "\\x4",
 			expected: "\x04",
 			warn:     false,
+		wantErr:  false,
 		},
 		"hex escape no digits": {
 			input:    "\\xgg",
 			expected: "xgg",
 			warn:     false,
+		wantErr:  false,
 		},
 		"escaped relations >": {
 			input:    "\\>",
 			expected: ">",
 			warn:     false,
+		wantErr:  false,
 		},
 		"escaped relations <": {
 			input:    "\\<",
 			expected: "<",
 			warn:     false,
+		wantErr:  false,
 		},
 		"escaped relations &": {
 			input:    "\\&",
 			expected: "&",
 			warn:     false,
+		wantErr:  false,
 		},
 		"escaped relations ^": {
 			input:    "\\^",
 			expected: "^",
 			warn:     false,
+		wantErr:  false,
 		},
 		"escaped relations =": {
 			input:    "\\=",
 			expected: "=",
 			warn:     false,
+		wantErr:  false,
 		},
 		"escaped relations !": {
 			input:    "\\!",
 			expected: "!",
 			warn:     false,
+		wantErr:  false,
 		},
 		"bracket nesting": {
 			input:    "[a-z]",
 			expected: "[a-z]",
 			warn:     false,
+		wantErr:  false,
 		},
 		"nested brackets": {
 			input:    "[[a-z]]",
 			expected: "[[a-z]]",
 			warn:     false,
+		wantErr:  false,
 		},
 		"escaped dot": {
 			input:    "\\.",
 			expected: ".",
 			warn:     true,
+		wantErr:  false,
 		},
 		"incomplete escape at end": {
 			input:    "hello\\",
-			expected: "hello",
+			expected: "",
 			warn:     true,
+			wantErr:  true,
 		},
 		"empty string": {
 			input:    "",
 			expected: "",
 			warn:     false,
+		wantErr:  false,
 		},
 		"complex string": {
 			input:    "\\x89PNG\\r\\n\\032\\n",
 			expected: "\x89PNG\r\n\x1a\n",
 			warn:     false,
+		wantErr:  false,
 		},
 		"string with multiple escapes": {
 			input:    "hello\\nworld\\ttab\\x41\\101",
 			expected: "hello\nworld\ttabAA",
 			warn:     false,
+		wantErr:  false,
 		},
 	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			got := getStr(tt.input, tt.warn)
+			got, err := getStr(tt.input, tt.warn)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("getStr(%q, %v) expected error, but got none", tt.input, tt.warn)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("getStr(%q, %v) unexpected error: %v", tt.input, tt.warn, err)
+				return
+			}
 			if got != tt.expected {
 				t.Errorf("getStr(%q, %v) = %q, want %q", tt.input, tt.warn, got, tt.expected)
 				// Print bytes for debugging

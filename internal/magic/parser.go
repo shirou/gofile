@@ -574,9 +574,9 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 // getStr converts a string containing C character escapes.
 // Stops at an unescaped space or tab.
 // This is a port of the getstr function from apprentice.c line 3021
-func getStr(s string, warn bool) string {
+func getStr(s string, warn bool) (string, error) {
 	if s == "" {
-		return ""
+		return "", nil
 	}
 
 	var result []byte
@@ -609,7 +609,7 @@ func getStr(s string, warn bool) string {
 		if i >= len(s) {
 			// Incomplete escape at end of string
 			if warn {
-				// In production, we'd log a warning here
+				return "", fmt.Errorf("incomplete escape sequence at end of string")
 			}
 			break
 		}
@@ -680,7 +680,7 @@ func getStr(s string, warn bool) string {
 		i++
 	}
 
-	return string(result)
+	return string(result), nil
 }
 
 // hexToInt converts a single hex character to its integer value
@@ -1314,7 +1314,10 @@ func getValue(m *Magic, p string) error {
 	case FILE_BESTRING16, FILE_LESTRING16, FILE_STRING, FILE_PSTRING,
 		FILE_REGEX, FILE_SEARCH, FILE_NAME, FILE_USE, FILE_DER, FILE_OCTAL:
 		// Parse string value using getStr
-		parsedStr := getStr(p, false)
+		parsedStr, err := getStr(p, false)
+		if err != nil {
+			return fmt.Errorf("cannot get string from '%s': %w", p, err)
+		}
 		if parsedStr == "" && p != "" {
 			return fmt.Errorf("cannot get string from '%s'", p)
 		}

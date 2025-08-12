@@ -25,10 +25,10 @@ func SortEntriesByStrength(entries []*Entry) {
 // FormatForList formats the database for --list output
 func (db *Database) FormatForList() []string {
 	var output []string
-	
+
 	for _, set := range db.Sets {
 		output = append(output, fmt.Sprintf("Set %d:", set.Number))
-		
+
 		// Binary patterns
 		output = append(output, "Binary patterns:")
 		if len(set.BinaryEntries) > 0 {
@@ -36,12 +36,12 @@ func (db *Database) FormatForList() []string {
 			sorted := make([]*Entry, len(set.BinaryEntries))
 			copy(sorted, set.BinaryEntries)
 			SortEntriesByStrength(sorted)
-			
+
 			for _, entry := range sorted {
 				if entry.Mp == nil {
 					continue
 				}
-				
+
 				// Get message - if parent's message is empty, look for child's message
 				message := entry.Mp.MessageStr
 				if message == "" && len(entry.Children) > 0 {
@@ -53,7 +53,7 @@ func (db *Database) FormatForList() []string {
 						}
 					}
 				}
-				
+
 				// Convert MIME type byte array to string
 				mimeBytes := entry.Mp.Mimetype[:]
 				// Find null terminator
@@ -61,7 +61,7 @@ func (db *Database) FormatForList() []string {
 					mimeBytes = mimeBytes[:idx]
 				}
 				mimeStr := string(mimeBytes)
-				
+
 				// If parent's MIME type is empty, look for child's MIME type
 				if mimeStr == "" && len(entry.Children) > 0 {
 					for _, child := range entry.Children {
@@ -78,7 +78,7 @@ func (db *Database) FormatForList() []string {
 						}
 					}
 				}
-				
+
 				info := StrengthInfo{
 					Value:      entry.Mp.Strength,
 					LineNumber: int(entry.Mp.Lineno),
@@ -88,20 +88,20 @@ func (db *Database) FormatForList() []string {
 				output = append(output, info.String())
 			}
 		}
-		
-		// Text patterns  
+
+		// Text patterns
 		output = append(output, "Text patterns:")
 		if len(set.TextEntries) > 0 {
 			// Sort by strength
 			sorted := make([]*Entry, len(set.TextEntries))
 			copy(sorted, set.TextEntries)
 			SortEntriesByStrength(sorted)
-			
+
 			for _, entry := range sorted {
 				if entry.Mp == nil {
 					continue
 				}
-				
+
 				// Get message - if parent's message is empty, look for child's message
 				message := entry.Mp.MessageStr
 				if message == "" && len(entry.Children) > 0 {
@@ -113,7 +113,7 @@ func (db *Database) FormatForList() []string {
 						}
 					}
 				}
-				
+
 				// Convert MIME type byte array to string
 				mimeBytes := entry.Mp.Mimetype[:]
 				// Find null terminator
@@ -121,7 +121,7 @@ func (db *Database) FormatForList() []string {
 					mimeBytes = mimeBytes[:idx]
 				}
 				mimeStr := string(mimeBytes)
-				
+
 				// If parent's MIME type is empty, look for child's MIME type
 				if mimeStr == "" && len(entry.Children) > 0 {
 					for _, child := range entry.Children {
@@ -138,7 +138,7 @@ func (db *Database) FormatForList() []string {
 						}
 					}
 				}
-				
+
 				info := StrengthInfo{
 					Value:      entry.Mp.Strength,
 					LineNumber: int(entry.Mp.Lineno),
@@ -149,7 +149,7 @@ func (db *Database) FormatForList() []string {
 			}
 		}
 	}
-	
+
 	return output
 }
 
@@ -158,17 +158,17 @@ func CompileMagic(inputFiles []string, outputFile string) error {
 	// This would compile magic files into a binary format
 	// For now, just parse and validate
 	parser := NewParser()
-	
+
 	for _, file := range inputFiles {
 		if err := parser.LoadFile(file); err != nil {
 			return fmt.Errorf("failed to parse %s: %w", file, err)
 		}
 	}
-	
+
 	if len(parser.GetErrors()) > 0 {
 		return fmt.Errorf("compilation failed with %d errors", len(parser.GetErrors()))
 	}
-	
+
 	// TODO: Write compiled format to outputFile
 	return fmt.Errorf("compiled magic format not yet implemented")
 }
@@ -176,13 +176,13 @@ func CompileMagic(inputFiles []string, outputFile string) error {
 // CheckMagic checks magic files for errors
 func CheckMagic(files []string) error {
 	parser := NewParser()
-	
+
 	for _, file := range files {
 		if err := parser.LoadFile(file); err != nil {
 			return fmt.Errorf("failed to parse %s: %w", file, err)
 		}
 	}
-	
+
 	errors := parser.GetErrors()
 	if len(errors) > 0 {
 		for _, err := range errors {
@@ -190,7 +190,7 @@ func CheckMagic(files []string) error {
 		}
 		return fmt.Errorf("found %d errors in magic files", len(errors))
 	}
-	
+
 	fmt.Println("Magic files are valid")
 	return nil
 }
