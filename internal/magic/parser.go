@@ -1059,8 +1059,17 @@ func (p *Parser) GetErrors() []error {
 
 // OrganizeSets organizes entries into sets for --list output
 func (p *Parser) OrganizeSets() {
-	// The sets should already be populated by addEntry
-	// Just sort them by strength
+	// Ensure we always have at least 2 sets (Set 0 and Set 1)
+	// This matches the reference implementation's MAGIC_SETS = 2
+	for len(p.database.Sets) < 2 {
+		p.database.Sets = append(p.database.Sets, Set{
+			Number:        len(p.database.Sets),
+			BinaryEntries: make([]*Entry, 0),
+			TextEntries:   make([]*Entry, 0),
+		})
+	}
+	
+	// Sort entries by strength in each set
 	if len(p.database.Sets) > 0 {
 		apprenticeSort(p.database.Sets[0].BinaryEntries)
 		apprenticeSort(p.database.Sets[0].TextEntries)
