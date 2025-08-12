@@ -1,0 +1,12 @@
+Set 0:
+Binary patterns:
+Strength =  70@18: a.out little-endian 32-bit executable []
+Strength =  70@22: a.out little-endian 32-bit pure executable []
+Strength =  70@26: a.out little-endian 32-bit demand paged pure executable []
+Strength =  70@38: a.out big-endian 32-bit executable []
+Strength =  70@41: a.out big-endian 32-bit pure executable []
+Strength =  70@44: a.out big-endian 32-bit demand paged executable []
+Text patterns:
+Set 1:
+Binary patterns:
+Text patterns:

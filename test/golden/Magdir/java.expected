@@ -1,0 +1,16 @@
+Set 0:
+Binary patterns:
+Strength = 201@24: Java HPROF dump, []
+Strength =  70@13: Java KeyStore [application/x-java-keystore]
+Strength =  70@15: Java JCE KeyStore [application/x-java-jce-keystore]
+Strength =  70@32: Java jmod module version 1.0 [application/x-java-jmod]
+Strength =  70@37: Java module image (big endian) [application/x-java-image]
+Strength =  70@42: Java module image (little endian) [application/x-java-image]
+Strength =  50@10: Java serialization data []
+Text patterns:
+Strength = 250@51: JAR Signature File []
+Strength = 240@49: JAR Manifest []
+Strength =  37@19: Java source [text/x-java]
+Set 1:
+Binary patterns:
+Text patterns:

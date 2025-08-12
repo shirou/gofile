@@ -1,0 +1,11 @@
+Set 0:
+Binary patterns:
+Strength =  70@6: VAX single precision APL workspace []
+Strength =  70@7: VAX double precision APL workspace []
+Strength =  70@13: a.out VAX demand paged (first page unmapped) pure executable []
+Strength =  51@22: VAX COFF executable, sections %d []
+Strength =  51@28: VAX COFF pure executable, sections %d []
+Text patterns:
+Set 1:
+Binary patterns:
+Text patterns:

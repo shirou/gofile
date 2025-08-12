@@ -10,7 +10,7 @@ test/file-tests/
 test/magic/
 test/data/
 test/testdata/file-source/
-test/golden
+test/golden/Magdir/*.actual
 *.mgc
 
 # Go build cache
