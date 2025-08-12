@@ -11,7 +11,8 @@
       "Bash(go run:*)",
       "Bash(mv:*)",
       "Bash(rm:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(make test_golden_file:*)"
     ],
     "deny": []
   }

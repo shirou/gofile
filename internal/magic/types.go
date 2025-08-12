@@ -157,7 +157,7 @@ func (m *Magic) GetTestType() TestType {
 	}
 
 	// Numeric types are all BINTEST (matching original file command)
-	switch baseType {
+	switch MagicType(baseType) {
 	case TypeByte, TypeUbyte, TypeShort, TypeUshort, TypeBeshort, TypeLeshort,
 		TypeLong, TypeUlong, TypeBelong, TypeLelong, TypeMelong,
 		TypeQuad, TypeBequad, TypeLequad,
@@ -299,7 +299,7 @@ func (m *Magic) calculateValueLength() int {
 		baseType = baseType[:idx]
 	}
 
-	if baseType != TypeString && baseType != TypePstring && baseType != TypeSearch {
+	if baseType != string(TypeString) && baseType != string(TypePstring) && baseType != string(TypeSearch) {
 		return 0
 	}
 

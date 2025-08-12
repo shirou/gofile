@@ -8,80 +8,81 @@ const (
 	TEXTTEST
 )
 
+type MagicType string
+
 // Base type constants for magic file types
 const (
 	// Numeric types
-	TypeByte      = "byte"
-	TypeUbyte     = "ubyte"
-	TypeShort     = "short"
-	TypeUshort    = "ushort"
-	TypeBeshort   = "beshort"
-	TypeLeshort   = "leshort"
-	TypeBeshort16 = "beshort16"
-	TypeLeshort16 = "leshort16"
-	TypeLong      = "long"
-	TypeUlong     = "ulong"
-	TypeBelong    = "belong"
-	TypeLelong    = "lelong"
-	TypeMelong    = "melong"
-	TypeQuad      = "quad"
-	TypeUquad     = "uquad"
-	TypeBequad    = "bequad"
-	TypeLequad    = "lequad"
-	TypeFloat     = "float"
-	TypeBefloat   = "befloat"
-	TypeLefloat   = "lefloat"
-	TypeDouble    = "double"
-	TypeBedouble  = "bedouble"
-	TypeLedouble  = "ledouble"
-
+	TypeByte               MagicType = "byte"
+	TypeUbyte              MagicType = "ubyte"
+	TypeShort              MagicType = "short"
+	TypeUshort             MagicType = "ushort"
+	TypeBeshort            MagicType = "beshort"
+	TypeLeshort            MagicType = "leshort"
+	TypeBeshort16 MagicType = "beshort16"
+	TypeLeshort16 MagicType = "leshort16"
+	TypeLong               MagicType = "long"
+	TypeUlong              MagicType = "ulong"
+	TypeBelong             MagicType = "belong"
+	TypeLelong             MagicType = "lelong"
+	TypeMelong             MagicType = "melong"
+	TypeQuad               MagicType = "quad"
+	TypeUquad              MagicType = "uquad"
+	TypeBequad             MagicType = "bequad"
+	TypeLequad             MagicType = "lequad"
+	TypeFloat              MagicType = "float"
+	TypeBefloat            MagicType = "befloat"
+	TypeLefloat            MagicType = "lefloat"
+	TypeDouble             MagicType = "double"
+	TypeBedouble           MagicType = "bedouble"
+	TypeLedouble           MagicType = "ledouble"
 	// Date types
-	TypeDate        = "date"
-	TypeBedate      = "bedate"
-	TypeLedate      = "ledate"
-	TypeLdate       = "ldate"
-	TypeBeldate     = "beldate"
-	TypeLeldate     = "leldate"
-	TypeMedate      = "medate"
-	TypeMeldate     = "meldate"
-	TypeQdate       = "qdate"
-	TypeLeqdate     = "leqdate"
-	TypeBeqdate     = "beqdate"
-	TypeQldate      = "qldate"
-	TypeLeqldate    = "leqldate"
-	TypeBeqldate    = "beqldate"
-	TypeQwdate      = "qwdate"
-	TypeLeqwdate    = "leqwdate"
-	TypeBeqwdate    = "beqwdate"
-	TypeMsdosdate   = "msdosdate"
-	TypeBemsdosdate = "bemsdosdate"
-	TypeLemsdosdate = "lemsdosdate"
-	TypeMsdostime   = "msdostime"
-	TypeBemsdostime = "bemsdostime"
-	TypeLemsdostime = "lemsdostime"
+	TypeDate        MagicType = "date"
+	TypeBedate      MagicType = "bedate"
+	TypeLedate      MagicType = "ledate"
+	TypeLdate       MagicType = "ldate"
+	TypeBeldate     MagicType = "beldate"
+	TypeLeldate     MagicType = "leldate"
+	TypeMedate      MagicType = "medate"
+	TypeMeldate     MagicType = "meldate"
+	TypeQdate       MagicType = "qdate"
+	TypeLeqdate     MagicType = "leqdate"
+	TypeBeqdate     MagicType = "beqdate"
+	TypeQldate      MagicType = "qldate"
+	TypeLeqldate    MagicType = "leqldate"
+	TypeBeqldate    MagicType = "beqldate"
+	TypeQwdate      MagicType = "qwdate"
+	TypeLeqwdate    MagicType = "leqwdate"
+	TypeBeqwdate    MagicType = "beqwdate"
+	TypeMsdosdate   MagicType = "msdosdate"
+	TypeBemsdosdate MagicType = "bemsdosdate"
+	TypeLemsdosdate MagicType = "lemsdosdate"
+	TypeMsdostime   MagicType = "msdostime"
+	TypeBemsdostime MagicType = "bemsdostime"
+	TypeLemsdostime MagicType = "lemsdostime"
 
 	// Variable-length integer types
-	TypeBevarint = "bevarint"
-	TypeLevarint = "levarint"
+	TypeBevarint MagicType = "bevarint"
+	TypeLevarint MagicType = "levarint"
 
 	// Special types
-	TypeDer      = "der"
-	TypeGuid     = "guid"
-	TypeOffset   = "offset"
-	TypeOctal    = "octal"
-	TypeIndirect = "indirect"
-	TypeDefault  = "default"
-	TypeClear    = "clear"
-	TypeName     = "name"
-	TypeUse      = "use"
+	TypeDer      MagicType = "der"
+	TypeGuid     MagicType = "guid"
+	TypeOffset   MagicType = "offset"
+	TypeOctal    MagicType = "octal"
+	TypeIndirect MagicType = "indirect"
+	TypeDefault  MagicType = "default"
+	TypeClear    MagicType = "clear"
+	TypeName     MagicType = "name"
+	TypeUse      MagicType = "use"
 
 	// String types
-	TypeString     = "string"
-	TypePstring    = "pstring"
-	TypeBestring16 = "bestring16"
-	TypeLestring16 = "lestring16"
-	TypeRegex      = "regex"
-	TypeSearch     = "search"
+	TypeString     MagicType = "string"
+	TypePstring    MagicType = "pstring"
+	TypeBestring16 MagicType = "bestring16"
+	TypeLestring16 MagicType = "lestring16"
+	TypeRegex      MagicType = "regex"
+	TypeSearch     MagicType = "search"
 )
 
 // Mask operation constants (matching file command's FILE_OPS_* definitions)
@@ -104,39 +105,39 @@ const (
 // String flag constants (for the Flags field in Magic struct)
 // These match the C implementation's string flags
 const (
-	STRING_COMPACT_WHITESPACE          uint32 = 1 << 0  // 'W' flag
-	STRING_COMPACT_OPTIONAL_WHITESPACE uint32 = 1 << 1  // 'w' flag
-	STRING_IGNORE_LOWERCASE            uint32 = 1 << 2  // 'c' flag
-	STRING_IGNORE_UPPERCASE            uint32 = 1 << 3  // 'C' flag
-	STRING_IGNORE_CASE                 = STRING_IGNORE_LOWERCASE | STRING_IGNORE_UPPERCASE
-	REGEX_OFFSET_START                 uint32 = 1 << 4  // 's' flag for regex
-	STRING_BINTEST                     uint32 = 1 << 5  // 'b' flag
-	STRING_TEXTTEST                    uint32 = 1 << 6  // 't' flag
-	STRING_TRIM                        uint32 = 1 << 7  // 'T' flag
-	STRING_FULL_WORD                   uint32 = 1 << 8  // 'f' flag
-	
+	STRING_COMPACT_WHITESPACE          uint32 = 1 << 0 // 'W' flag
+	STRING_COMPACT_OPTIONAL_WHITESPACE uint32 = 1 << 1 // 'w' flag
+	STRING_IGNORE_LOWERCASE            uint32 = 1 << 2 // 'c' flag
+	STRING_IGNORE_UPPERCASE            uint32 = 1 << 3 // 'C' flag
+	STRING_IGNORE_CASE                        = STRING_IGNORE_LOWERCASE | STRING_IGNORE_UPPERCASE
+	REGEX_OFFSET_START                 uint32 = 1 << 4 // 's' flag for regex
+	STRING_BINTEST                     uint32 = 1 << 5 // 'b' flag
+	STRING_TEXTTEST                    uint32 = 1 << 6 // 't' flag
+	STRING_TRIM                        uint32 = 1 << 7 // 'T' flag
+	STRING_FULL_WORD                   uint32 = 1 << 8 // 'f' flag
+
 	// Old names kept for compatibility (deprecated)
-	STRING_FLAG_COMPACT_WHITESPACE          = STRING_COMPACT_WHITESPACE
-	STRING_FLAG_COMPACT_OPTIONAL_WHITESPACE = STRING_COMPACT_OPTIONAL_WHITESPACE
+	STRING_FLAG_COMPACT_WHITESPACE                 = STRING_COMPACT_WHITESPACE
+	STRING_FLAG_COMPACT_OPTIONAL_WHITESPACE        = STRING_COMPACT_OPTIONAL_WHITESPACE
 	STRING_FLAG_BLANK                       uint32 = 1 << 9  // 'b' flag (old)
 	STRING_FLAG_OPTIONAL_BLANK              uint32 = 1 << 10 // 'B' flag (old)
-	STRING_FLAG_CASE_INSENSITIVE            = STRING_IGNORE_CASE
-	STRING_FLAG_TEXT                        = STRING_TEXTTEST
-	STRING_FLAG_TRIM                        = STRING_TRIM
+	STRING_FLAG_CASE_INSENSITIVE                   = STRING_IGNORE_CASE
+	STRING_FLAG_TEXT                               = STRING_TEXTTEST
+	STRING_FLAG_TRIM                               = STRING_TRIM
 	STRING_FLAG_NOSPACE                     uint32 = 1 << 11 // 'R' flag (old)
-	STRING_FLAG_BINTEST                     = STRING_BINTEST
-	STRING_FLAG_TEXTTEST                    = STRING_TEXTTEST
+	STRING_FLAG_BINTEST                            = STRING_BINTEST
+	STRING_FLAG_TEXTTEST                           = STRING_TEXTTEST
 	STRING_FLAG_LINE                        uint32 = 1 << 12 // 'l' flag (old)
-	STRING_FLAG_FULL_WORD                   = STRING_FULL_WORD
+	STRING_FLAG_FULL_WORD                          = STRING_FULL_WORD
 )
 
 // Factor operation constants (for strength modifiers)
 const (
-	FILE_FACTOR_OP_NONE  uint8 = 0    // '\0' - no operation
-	FILE_FACTOR_OP_PLUS  uint8 = '+'  // '+' - addition
-	FILE_FACTOR_OP_MINUS uint8 = '-'  // '-' - subtraction
-	FILE_FACTOR_OP_TIMES uint8 = '*'  // '*' - multiplication
-	FILE_FACTOR_OP_DIV   uint8 = '/'  // '/' - division
+	FILE_FACTOR_OP_NONE  uint8 = 0   // '\0' - no operation
+	FILE_FACTOR_OP_PLUS  uint8 = '+' // '+' - addition
+	FILE_FACTOR_OP_MINUS uint8 = '-' // '-' - subtraction
+	FILE_FACTOR_OP_TIMES uint8 = '*' // '*' - multiplication
+	FILE_FACTOR_OP_DIV   uint8 = '/' // '/' - division
 )
 
 // File type constants (numeric values for Magic.Type field)

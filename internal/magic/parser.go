@@ -178,10 +178,10 @@ func (p *Parser) parseLineWithResult(me *Entry, line string, lineNumber int, fil
 		// Store as continuation
 		// Find the correct parent based on continuation level
 		newEntry := &Entry{
-			Mp: m,
+			Mp:       m,
 			Children: make([]*Entry, 0),
 		}
-		
+
 		// For level 1, add directly to top-level entry
 		if m.ContLevel == 1 {
 			me.Children = append(me.Children, newEntry)
@@ -389,19 +389,29 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 	if len(l) > 0 && l[0] == 'u' {
 		// Unsigned type prefix
 		l = l[1:]
-		typeStr, l = getType(l)
-		if typeStr == "" {
+		magicType, rest, err := getType(l)
+		if err == nil {
+			typeStr = string(magicType)
+			l = rest
+		} else {
 			// Try as SUS integer type
-			typeStr, l = getStandardIntegerType("u" + l)
+			magicType, rest := getStandardIntegerType("u" + l)
+			typeStr = string(magicType)
+			l = rest
 		}
 		m.Flag |= UNSIGNED
 	} else {
 		// Regular type
-		typeStr, l = getType(l)
-		if typeStr == "" {
+		magicType, rest, err := getType(l)
+		if err == nil {
+			typeStr = string(magicType)
+			l = rest
+		} else {
 			// Try SUS integer type
 			if len(l) > 0 && l[0] == 'd' {
-				typeStr, l = getStandardIntegerType(l)
+				magicType, rest := getStandardIntegerType(l)
+				typeStr = string(magicType)
+				l = rest
 			} else if len(l) > 0 && l[0] == 's' && (len(l) == 1 || !isAlpha(l[1])) {
 				typeStr = "string"
 				l = l[1:]
@@ -582,15 +592,15 @@ func getStr(s string, warn bool) string {
 	var result []byte
 	i := 0
 	bracketNesting := 0
-	
+
 	for i < len(s) {
 		c := s[i]
-		
+
 		// Stop at unescaped whitespace
 		if c == ' ' || c == '\t' {
 			break
 		}
-		
+
 		if c != '\\' {
 			// Handle bracket nesting for regex patterns
 			if c == '[' {
@@ -603,7 +613,7 @@ func getStr(s string, warn bool) string {
 			i++
 			continue
 		}
-		
+
 		// Handle escape sequences
 		i++ // Skip the backslash
 		if i >= len(s) {
@@ -613,7 +623,7 @@ func getStr(s string, warn bool) string {
 			}
 			break
 		}
-		
+
 		switch s[i] {
 		case ' ':
 			// Escaped space
@@ -679,7 +689,7 @@ func getStr(s string, warn bool) string {
 		}
 		i++
 	}
-	
+
 	return string(result)
 }
 
@@ -756,7 +766,7 @@ func getOp(c byte) uint8 {
 }
 
 // getType extracts a type name from the string
-func getType(s string) (string, string) {
+func getType(s string) (MagicType, string, error) {
 	types := []string{
 		"byte", "short", "long", "quad",
 		"beshort", "belong", "bequad",
@@ -782,11 +792,11 @@ func getType(s string) (string, string) {
 
 	for _, typ := range types {
 		if strings.HasPrefix(s, typ) {
-			return typ, s[len(typ):]
+			return MagicType(typ), s[len(typ):], nil // rest of the string
 		}
 	}
 
-	return "", s
+	return "", s, fmt.Errorf("unknown type: %s", s)
 }
 
 // getSpecialType extracts special type names
@@ -805,7 +815,7 @@ func getSpecialType(s string) (string, string) {
 }
 
 // getStandardIntegerType parses SUS integer types (d, dC, dS, dL, dQ, u, uC, uS, uL, uQ)
-func getStandardIntegerType(s string) (string, string) {
+func getStandardIntegerType(s string) (MagicType, string) {
 	if len(s) < 1 {
 		return "", s
 	}
@@ -825,64 +835,64 @@ func getStandardIntegerType(s string) (string, string) {
 	if idx >= len(s) {
 		// Just 'd' or 'u' - default to long
 		if unsigned {
-			return "ulong", s[idx:]
+			return TypeUlong, s[idx:]
 		}
-		return "long", s[idx:]
+		return TypeLong, s[idx:]
 	}
 
 	if isAlpha(s[idx]) {
 		switch s[idx] {
 		case 'C': // char/byte
 			if unsigned {
-				return "ubyte", s[idx+1:]
+				return TypeUbyte, s[idx+1:]
 			}
-			return "byte", s[idx+1:]
+			return TypeByte, s[idx+1:]
 		case 'S': // short
 			if unsigned {
-				return "ushort", s[idx+1:]
+				return TypeUshort, s[idx+1:]
 			}
-			return "short", s[idx+1:]
+			return TypeShort, s[idx+1:]
 		case 'I', 'L': // int/long
 			if unsigned {
-				return "ulong", s[idx+1:]
+				return TypeUlong, s[idx+1:]
 			}
-			return "long", s[idx+1:]
+			return TypeLong, s[idx+1:]
 		case 'Q': // quad
 			if unsigned {
-				return "uquad", s[idx+1:]
+				return TypeUquad, s[idx+1:]
 			}
-			return "quad", s[idx+1:]
+			return TypeQuad, s[idx+1:]
 		}
 	} else if isDigit(s[idx]) {
 		switch s[idx] {
 		case '1':
 			if unsigned {
-				return "ubyte", s[idx+1:]
+				return TypeUbyte, s[idx+1:]
 			}
-			return "byte", s[idx+1:]
+			return TypeByte, s[idx+1:]
 		case '2':
 			if unsigned {
-				return "ushort", s[idx+1:]
+				return TypeUshort, s[idx+1:]
 			}
-			return "short", s[idx+1:]
+			return TypeShort, s[idx+1:]
 		case '4':
 			if unsigned {
-				return "ulong", s[idx+1:]
+				return TypeUlong, s[idx+1:]
 			}
-			return "long", s[idx+1:]
+			return TypeLong, s[idx+1:]
 		case '8':
 			if unsigned {
-				return "uquad", s[idx+1:]
+				return TypeUquad, s[idx+1:]
 			}
-			return "quad", s[idx+1:]
+			return TypeQuad, s[idx+1:]
 		}
 	}
 
 	// Default to long
 	if unsigned {
-		return "ulong", s[idx:]
+		return TypeUlong, s[idx:]
 	}
-	return "long", s[idx:]
+	return TypeLong, s[idx:]
 }
 
 // isAlpha checks if a character is alphabetic
