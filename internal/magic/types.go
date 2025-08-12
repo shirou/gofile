@@ -198,6 +198,11 @@ func (m *Magic) GetTestType() TestType {
 		}
 		return BINTEST
 
+	case TypeName, TypeUse, TypeClear:
+		// These types are not used for pattern matching
+		// They don't have BINTEST or TEXTTEST flags set (matching original file command)
+		return NOTEST
+
 	default:
 		// Default to binary (matching original file command behavior)
 		return BINTEST

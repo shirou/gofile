@@ -50,6 +50,18 @@ func (p *Parser) addEntry(me *Entry) {
 		return
 	}
 
+	// Debug: Check if this is a top-level entry (ContLevel == 0)
+	// Only top-level entries should be added to the database
+	if me.Mp.ContLevel != 0 {
+		// This is a continuation entry, should not be added directly
+		// It should be part of parent's Children array
+		// fmt.Printf("Skipping continuation entry: %s (line %d, level %d)\n", me.Mp.MessageStr, me.Mp.Lineno, me.Mp.ContLevel)
+		return
+	}
+
+	// fmt.Printf("Adding entry: Type=%s, Message=%s (line %d, children=%d)\n",
+	//     me.Mp.TypeStr, me.Mp.MessageStr, me.Mp.Lineno, len(me.Children))
+
 	// Determine which set based on type (FILE_NAME goes to set 1, others to set 0)
 	setIndex := 0
 	if me.Mp.Type == TypeName {
@@ -69,14 +81,19 @@ func (p *Parser) addEntry(me *Entry) {
 
 	// Determine test type using the same logic as the C implementation
 	// This will properly classify entries as binary or text based on their type and flags
-	testType := me.GetTestType()
-	if testType == TEXTTEST {
+	switch me.GetTestType() {
+	case TEXTTEST:
 		set.TextEntries = append(set.TextEntries, me)
-	} else {
+	case BINTEST:
 		set.BinaryEntries = append(set.BinaryEntries, me)
+	case NOTEST:
+		// NOTEST entries are not added to either list (they won't be displayed in --list)
+	default:
+		panic(fmt.Sprintf("Unknown test type for entry: %s", me.Mp.TypeStr))
 	}
 
 	// Also add to the main entries list for backward compatibility
+	// But only for top-level entries (not continuation entries)
 	p.database.Entries = append(p.database.Entries, me)
 }
 
@@ -99,7 +116,6 @@ func (p *Parser) LoadOne(r io.Reader, filename string) error {
 		if line[0] == '#' || line[0] == '\x00' {
 			continue
 		}
-		
 
 		// Handle bang directives (!:mime, !:apple, !:ext, !:strength)
 		if len(line) > 2 && line[0] == '!' && line[1] == ':' {
@@ -431,7 +447,7 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 	}
 
 	m.TypeStr = typeStr
-	
+
 	// Convert TypeStr to Type enum
 	m.Type = StringToMagicType(typeStr)
 	if m.Type == TypeInvalid {
@@ -525,7 +541,7 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 		if len(l) == 0 {
 			return nil, fmt.Errorf("incomplete magic '%s'", line)
 		}
-		
+
 		// For string types, use getStr to handle escaped spaces properly
 		isString := false
 		switch m.Type {
@@ -533,7 +549,7 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 			TypeRegex, TypeSearch, TypeName, TypeUse, TypeDer, TypeOctal:
 			isString = true
 		}
-		
+
 		if isString {
 			// For string types, we need to find the end of the value
 			// by properly handling escaped spaces
@@ -555,11 +571,11 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 					valueEnd++
 				}
 			}
-			
+
 			// Get the raw test string (with escapes)
 			rawTestStr := l[:valueEnd]
 			m.TestStr = rawTestStr
-			
+
 			// Parse the test value into the appropriate Value field
 			// getValue will handle escape processing for string types
 			if err := getValue(m, rawTestStr); err != nil {
@@ -1043,56 +1059,16 @@ func (p *Parser) GetErrors() []error {
 
 // OrganizeSets organizes entries into sets for --list output
 func (p *Parser) OrganizeSets() {
-	// Set 0: Regular file content patterns (FILE_CHECK)
-	// Set 1: File name patterns (FILE_NAME)
-
-	set0 := Set{
-		Number:        0,
-		BinaryEntries: make([]*Entry, 0),
-		TextEntries:   make([]*Entry, 0),
+	// The sets should already be populated by addEntry
+	// Just sort them by strength
+	if len(p.database.Sets) > 0 {
+		apprenticeSort(p.database.Sets[0].BinaryEntries)
+		apprenticeSort(p.database.Sets[0].TextEntries)
 	}
-
-	set1 := Set{
-		Number:        1,
-		BinaryEntries: make([]*Entry, 0),
-		TextEntries:   make([]*Entry, 0),
+	if len(p.database.Sets) > 1 {
+		apprenticeSort(p.database.Sets[1].BinaryEntries)
+		apprenticeSort(p.database.Sets[1].TextEntries)
 	}
-
-	// First, set the test type for all entries and their continuations
-	// This mirrors the behavior of set_text_binary in apprentice.c
-	for i := 0; i < len(p.database.Entries); {
-		i = SetTextBinary(p.database.Entries, i)
-	}
-
-	for _, entry := range p.database.Entries {
-		if entry.Mp == nil {
-			continue
-		}
-
-		if entry.Mp.IsNameType {
-			// FILE_NAME type patterns go to Set 1
-			if entry.Mp.TestType == BINTEST {
-				set1.BinaryEntries = append(set1.BinaryEntries, entry)
-			} else {
-				set1.TextEntries = append(set1.TextEntries, entry)
-			}
-		} else {
-			// Regular patterns go to Set 0
-			if entry.Mp.TestType == BINTEST {
-				set0.BinaryEntries = append(set0.BinaryEntries, entry)
-			} else {
-				set0.TextEntries = append(set0.TextEntries, entry)
-			}
-		}
-	}
-
-	// Sort entries by strength using apprentice_sort algorithm
-	apprenticeSort(set0.BinaryEntries)
-	apprenticeSort(set0.TextEntries)
-	apprenticeSort(set1.BinaryEntries)
-	apprenticeSort(set1.TextEntries)
-
-	p.database.Sets = []Set{set0, set1}
 }
 
 // SetTextBinary sets the test type (binary or text) for entries and their continuations
@@ -1371,7 +1347,7 @@ func getValue(m *Magic, p string) error {
 		if parsedStr == "" && p != "" {
 			return fmt.Errorf("cannot get string from '%s'", p)
 		}
-		
+
 		// Store in Value.S array
 		copy(m.Value.S[:], []byte(parsedStr))
 		if len(parsedStr) > 255 {
@@ -1379,15 +1355,15 @@ func getValue(m *Magic, p string) error {
 		} else {
 			m.Vallen = uint8(len(parsedStr))
 		}
-		
+
 		// Also update TestStr with the parsed value for string types
 		m.TestStr = parsedStr
-		
+
 		// For regex, we could validate it here if needed
 		// In the C code, they compile the regex to validate it
-		
+
 		return nil
-		
+
 	case TypeFloat, TypeBefloat, TypeLefloat:
 		// Parse as float32
 		val, err := strconv.ParseFloat(strings.TrimSpace(p), 32)
@@ -1396,7 +1372,7 @@ func getValue(m *Magic, p string) error {
 		}
 		m.Value.F = float32(val)
 		return nil
-		
+
 	case TypeDouble, TypeBedouble, TypeLedouble:
 		// Parse as float64
 		val, err := strconv.ParseFloat(strings.TrimSpace(p), 64)
@@ -1405,7 +1381,7 @@ func getValue(m *Magic, p string) error {
 		}
 		m.Value.D = val
 		return nil
-		
+
 	case TypeGuid:
 		// Parse GUID
 		guid, err := parseGUID(p)
@@ -1414,31 +1390,31 @@ func getValue(m *Magic, p string) error {
 		}
 		m.Value.Guid = guid
 		return nil
-		
+
 	default:
 		// Handle numeric types
 		if m.Reln == 'x' {
 			// 'x' means any value matches
 			return nil
 		}
-		
+
 		// Parse as unsigned integer with automatic base detection
 		p = strings.TrimSpace(p)
 		if p == "" {
 			return fmt.Errorf("empty numeric value")
 		}
-		
+
 		// Check for negative sign
 		negative := false
 		if p[0] == '-' {
 			negative = true
 			p = p[1:]
 		}
-		
+
 		// Parse the number (strtoull equivalent)
 		var val uint64
 		var err error
-		
+
 		if strings.HasPrefix(p, "0x") || strings.HasPrefix(p, "0X") {
 			// Hexadecimal
 			val, err = strconv.ParseUint(p[2:], 16, 64)
@@ -1453,29 +1429,29 @@ func getValue(m *Magic, p string) error {
 			// Decimal
 			val, err = strconv.ParseUint(p, 10, 64)
 		}
-		
+
 		if err != nil {
 			return fmt.Errorf("unparsable number '%s': %w", p, err)
 		}
-		
+
 		// Apply sign if negative
 		if negative && val != math.MaxUint64 {
 			val = uint64(-int64(val))
 		}
-		
+
 		// Check for overflow based on type size
 		ts := typeSize(m.Type)
 		if ts == 0 {
 			return fmt.Errorf("expected numeric type got type %d", m.Type)
 		}
-		
+
 		if err := checkOverflow(val, ts); err != nil {
 			return err
 		}
-		
+
 		// Apply sign extension
 		m.Value.Q = signExtend(m, val)
-		
+
 		return nil
 	}
 }
@@ -1484,7 +1460,7 @@ func getValue(m *Magic, p string) error {
 func checkOverflow(val uint64, typeSize uint8) error {
 	var x uint64
 	var overflow bool
-	
+
 	switch typeSize {
 	case 1:
 		x = val & ^uint64(0xff)
@@ -1501,11 +1477,11 @@ func checkOverflow(val uint64, typeSize uint8) error {
 	default:
 		return fmt.Errorf("bad width %d", typeSize)
 	}
-	
+
 	if overflow {
 		return fmt.Errorf("overflow for numeric type value %#x", val)
 	}
-	
+
 	return nil
 }
 
@@ -1513,26 +1489,26 @@ func checkOverflow(val uint64, typeSize uint8) error {
 func parseGUID(s string) ([2]uint64, error) {
 	// GUID format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
 	// Or without dashes: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-	
+
 	// Remove dashes if present
 	s = strings.ReplaceAll(s, "-", "")
-	
+
 	// Should be exactly 32 hex characters
 	if len(s) != 32 {
 		return [2]uint64{}, fmt.Errorf("invalid GUID length: %d", len(s))
 	}
-	
+
 	// Parse as two 64-bit values
 	high, err := strconv.ParseUint(s[:16], 16, 64)
 	if err != nil {
 		return [2]uint64{}, fmt.Errorf("invalid GUID high part: %w", err)
 	}
-	
+
 	low, err := strconv.ParseUint(s[16:], 16, 64)
 	if err != nil {
 		return [2]uint64{}, fmt.Errorf("invalid GUID low part: %w", err)
 	}
-	
+
 	return [2]uint64{high, low}, nil
 }
 

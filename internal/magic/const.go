@@ -4,7 +4,8 @@ package magic
 type TestType int
 
 const (
-	BINTEST TestType = iota
+	NOTEST TestType = iota  // Neither binary nor text (for name entries, etc.)
+	BINTEST
 	TEXTTEST
 )
 
