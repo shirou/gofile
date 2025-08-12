@@ -33,14 +33,14 @@ func TestGetType(t *testing.T) {
 		},
 		"invalid type": {
 			input:       "invalidtype test",
-			wantType:    "",
+			wantType:    TypeInvalid,
 			wantRest:    "invalidtype test",
 			wantErr:     true,
 			errContains: "unknown type",
 		},
 		"empty input": {
 			input:       "",
-			wantType:    "",
+			wantType:    TypeInvalid,
 			wantRest:    "",
 			wantErr:     true,
 			errContains: "unknown type",
@@ -70,7 +70,7 @@ func TestGetType(t *testing.T) {
 			}
 			
 			if gotType != tt.wantType {
-				t.Errorf("Type mismatch: want=%s, got=%s", tt.wantType, gotType)
+				t.Errorf("Type mismatch: want=%s, got=%s", tt.wantType.ToString(), gotType.ToString())
 			}
 			
 			if gotRest != tt.wantRest {

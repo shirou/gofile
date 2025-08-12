@@ -59,8 +59,8 @@ func (m *Magic) apprenticeMagicStrength() int {
 	val := BASE
 
 	// Calculate Vallen if not already set (for string types)
-	if m.Vallen == 0 && (m.TypeStr == string(TypeString) || m.TypeStr == string(TypePstring) || 
-		m.TypeStr == string(TypeSearch) || strings.HasPrefix(m.TypeStr, "search/")) {
+	if m.Vallen == 0 && (m.TypeStr == TypeString.ToString() || m.TypeStr == TypePstring.ToString() || 
+		m.TypeStr == TypeSearch.ToString() || strings.HasPrefix(m.TypeStr, "search/")) {
 		m.Vallen = uint8(m.calculateValueLength())
 	}
 
@@ -71,7 +71,7 @@ func (m *Magic) apprenticeMagicStrength() int {
 	}
 
 	// Calculate strength based on type
-	switch MagicType(baseType) {
+	switch MagicTypeFromString(baseType) {
 	case TypeDefault:
 		// Default type has no strength regardless of factor_op
 		return 0

@@ -125,7 +125,7 @@ func signExtend(m *Magic, v uint64) uint64 {
 	}
 	
 	// Sign extend based on type
-	switch MagicType(baseType) {
+	switch MagicTypeFromString(baseType) {
 	case TypeByte, TypeUbyte:
 		// Sign extend from 8 bits
 		return uint64(int64(int8(v)))

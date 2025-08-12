@@ -87,12 +87,12 @@ func TestGetStandardIntegerType(t *testing.T) {
 		},
 		"invalid - not a SUS type": {
 			input:    "invalid",
-			wantType: "",
+			wantType: TypeInvalid,
 			wantRest: "invalid",
 		},
 		"empty string": {
 			input:    "",
-			wantType: "",
+			wantType: TypeInvalid,
 			wantRest: "",
 		},
 	}
@@ -102,7 +102,7 @@ func TestGetStandardIntegerType(t *testing.T) {
 			gotType, gotRest := getStandardIntegerType(tt.input)
 			
 			if gotType != tt.wantType {
-				t.Errorf("Type mismatch: want=%s, got=%s", tt.wantType, gotType)
+				t.Errorf("Type mismatch: want=%s, got=%s", tt.wantType.ToString(), gotType.ToString())
 			}
 			
 			if gotRest != tt.wantRest {

@@ -6,6 +6,11 @@ import (
 	"strings"
 )
 
+// StringToMagicType converts a type string to its corresponding MagicType constant
+func StringToMagicType(typeStr string) MagicType {
+	return MagicTypeFromString(typeStr)
+}
+
 // Constants matching file.h definitions
 const (
 	MAXDESC   = 64  // Maximum length of text description
@@ -51,10 +56,10 @@ type Magic struct {
 	Factor    uint8  // Strength factor
 
 	// Word 2
-	Reln   uint8 // Relation (0=eq, '>'=gt, etc)
-	Vallen uint8 // Length of string value, if any
-	Type   uint8 // Comparison type (FILE_*)
-	InType uint8 // Type of indirection
+	Reln   uint8     // Relation (0=eq, '>'=gt, etc)
+	Vallen uint8     // Length of string value, if any
+	Type   MagicType // Comparison type
+	InType MagicType // Type of indirection
 
 	// Word 3
 	InOp     uint8 // Operator for indirection
@@ -150,14 +155,8 @@ func (s *StrengthInfo) String() string {
 // GetTestType determines whether this magic represents a binary or text pattern
 // This implements the same logic as the original file command's set_test_type function
 func (m *Magic) GetTestType() TestType {
-	// Handle types with parameters (e.g., search/256)
-	baseType := m.TypeStr
-	if idx := strings.Index(baseType, "/"); idx > 0 {
-		baseType = baseType[:idx]
-	}
-
 	// Numeric types are all BINTEST (matching original file command)
-	switch MagicType(baseType) {
+	switch m.Type {
 	case TypeByte, TypeUbyte, TypeShort, TypeUshort, TypeBeshort, TypeLeshort,
 		TypeLong, TypeUlong, TypeBelong, TypeLelong, TypeMelong,
 		TypeQuad, TypeBequad, TypeLequad,
@@ -168,7 +167,8 @@ func (m *Magic) GetTestType() TestType {
 		TypeQldate, TypeLeqldate, TypeBeqldate, TypeQwdate, TypeLeqwdate, TypeBeqwdate,
 		TypeMsdosdate, TypeBemsdosdate, TypeLemsdosdate,
 		TypeMsdostime, TypeBemsdostime, TypeLemsdostime,
-		TypeBevarint, TypeLevarint, TypeDer, TypeGuid, TypeOffset, TypeOctal:
+		TypeBevarint, TypeLevarint, TypeDer, TypeGuid, TypeOffset, TypeOctal,
+		TypeBeshort16, TypeLeshort16, TypeUquad:
 		return BINTEST
 
 	case TypeString, TypePstring, TypeBestring16, TypeLestring16:
@@ -299,7 +299,7 @@ func (m *Magic) calculateValueLength() int {
 		baseType = baseType[:idx]
 	}
 
-	if baseType != string(TypeString) && baseType != string(TypePstring) && baseType != string(TypeSearch) {
+	if baseType != TypeString.ToString() && baseType != TypePstring.ToString() && baseType != TypeSearch.ToString() {
 		return 0
 	}
 

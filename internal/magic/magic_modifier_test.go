@@ -14,7 +14,7 @@ func TestParseOpModifierFunc(t *testing.T) {
 		wantOp   uint8
 	}{
 		"AND with hex value": {
-			typeStr:  string(TypeLong),
+			typeStr:  TypeLong.ToString(),
 			input:    "&0xff",
 			op:       FILE_OPAND,
 			wantMask: 0xff,
@@ -22,7 +22,7 @@ func TestParseOpModifierFunc(t *testing.T) {
 			wantOp:   FILE_OPAND,
 		},
 		"OR with decimal value": {
-			typeStr:  string(TypeShort),
+			typeStr:  TypeShort.ToString(),
 			input:    "|256",
 			op:       FILE_OPOR,
 			wantMask: 256,
@@ -30,7 +30,7 @@ func TestParseOpModifierFunc(t *testing.T) {
 			wantOp:   FILE_OPOR,
 		},
 		"XOR with octal value": {
-			typeStr:  string(TypeByte),
+			typeStr:  TypeByte.ToString(),
 			input:    "^0377",
 			op:       FILE_OPXOR,
 			wantMask: 0xffffffffffffffff, // 0377 (255) sign-extended from byte to -1
@@ -38,7 +38,7 @@ func TestParseOpModifierFunc(t *testing.T) {
 			wantOp:   FILE_OPXOR,
 		},
 		"ADD with decimal and size modifier": {
-			typeStr:  string(TypeLong),
+			typeStr:  TypeLong.ToString(),
 			input:    "+10L",
 			op:       FILE_OPADD,
 			wantMask: 10,
@@ -46,7 +46,7 @@ func TestParseOpModifierFunc(t *testing.T) {
 			wantOp:   FILE_OPADD,
 		},
 		"MINUS with negative value": {
-			typeStr:  string(TypeLong),
+			typeStr:  TypeLong.ToString(),
 			input:    "--5",
 			op:       FILE_OPMINUS,
 			wantMask: 0xfffffffffffffffb, // -5 as uint64
@@ -54,7 +54,7 @@ func TestParseOpModifierFunc(t *testing.T) {
 			wantOp:   FILE_OPMINUS,
 		},
 		"value with trailing text": {
-			typeStr:  string(TypeLong),
+			typeStr:  TypeLong.ToString(),
 			input:    "&0xff test",
 			op:       FILE_OPAND,
 			wantMask: 0xff,
@@ -96,31 +96,31 @@ func TestSignExtend(t *testing.T) {
 		want     uint64
 	}{
 		"byte sign extend": {
-			typeStr:  string(TypeByte),
+			typeStr:  TypeByte.ToString(),
 			value:    0xff,
 			unsigned: false,
 			want:     0xffffffffffffffff, // -1 as uint64
 		},
 		"byte unsigned": {
-			typeStr:  string(TypeByte),
+			typeStr:  TypeByte.ToString(),
 			value:    0xff,
 			unsigned: true,
 			want:     0xff,
 		},
 		"short sign extend": {
-			typeStr:  string(TypeShort),
+			typeStr:  TypeShort.ToString(),
 			value:    0xffff,
 			unsigned: false,
 			want:     0xffffffffffffffff, // -1 as uint64
 		},
 		"long sign extend": {
-			typeStr:  string(TypeLong),
+			typeStr:  TypeLong.ToString(),
 			value:    0xffffffff,
 			unsigned: false,
 			want:     0xffffffffffffffff, // -1 as uint64
 		},
 		"quad no sign extend": {
-			typeStr:  string(TypeQuad),
+			typeStr:  TypeQuad.ToString(),
 			value:    0xffffffffffffffff,
 			unsigned: false,
 			want:     0xffffffffffffffff,

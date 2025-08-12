@@ -7,7 +7,7 @@ import (
 
 func TestGetValue(t *testing.T) {
 	tests := map[string]struct {
-		magicType uint8
+		magicType MagicType
 		typeStr   string
 		reln      uint8
 		testValue string
@@ -20,31 +20,31 @@ func TestGetValue(t *testing.T) {
 	}{
 		// Numeric types - decimal
 		"byte decimal positive": {
-			magicType: FILE_BYTE,
+			magicType: TypeByte,
 			typeStr:   "byte",
 			testValue: "127",
 			wantQ:     127,
 		},
 		"byte decimal negative": {
-			magicType: FILE_BYTE,
+			magicType: TypeByte,
 			typeStr:   "byte",
 			testValue: "-128",
 			wantQ:     0xffffffffffffff80, // -128 as uint64
 		},
 		"short decimal": {
-			magicType: FILE_SHORT,
+			magicType: TypeShort,
 			typeStr:   "short",
 			testValue: "32767",
 			wantQ:     32767,
 		},
 		"long decimal": {
-			magicType: FILE_LONG,
+			magicType: TypeLong,
 			typeStr:   "long",
 			testValue: "2147483647",
 			wantQ:     2147483647,
 		},
 		"quad decimal": {
-			magicType: FILE_QUAD,
+			magicType: TypeQuad,
 			typeStr:   "quad",
 			testValue: "9223372036854775807",
 			wantQ:     9223372036854775807,
@@ -52,25 +52,25 @@ func TestGetValue(t *testing.T) {
 
 		// Numeric types - hexadecimal
 		"byte hex": {
-			magicType: FILE_BYTE,
+			magicType: TypeByte,
 			typeStr:   "byte",
 			testValue: "0x7F",
 			wantQ:     0x7F,
 		},
 		"short hex": {
-			magicType: FILE_SHORT,
+			magicType: TypeShort,
 			typeStr:   "short",
 			testValue: "0x7FFF",
 			wantQ:     0x7FFF,
 		},
 		"long hex": {
-			magicType: FILE_LONG,
+			magicType: TypeLong,
 			typeStr:   "long",
 			testValue: "0xDEADBEEF",
 			wantQ:     0xffffffffDEADBEEF, // sign extended because high bit is set
 		},
 		"quad hex": {
-			magicType: FILE_QUAD,
+			magicType: TypeQuad,
 			typeStr:   "quad",
 			testValue: "0x123456789ABCDEF0",
 			wantQ:     0x123456789ABCDEF0,
@@ -78,13 +78,13 @@ func TestGetValue(t *testing.T) {
 
 		// Numeric types - octal
 		"byte octal": {
-			magicType: FILE_BYTE,
+			magicType: TypeByte,
 			typeStr:   "byte",
 			testValue: "0177",
 			wantQ:     0177,
 		},
 		"short octal": {
-			magicType: FILE_SHORT,
+			magicType: TypeShort,
 			typeStr:   "short",
 			testValue: "077777",
 			wantQ:     077777,
@@ -92,25 +92,25 @@ func TestGetValue(t *testing.T) {
 
 		// Endian-specific types
 		"beshort": {
-			magicType: FILE_BESHORT,
+			magicType: TypeBeshort,
 			typeStr:   "beshort",
 			testValue: "0x1234",
 			wantQ:     0x1234,
 		},
 		"leshort": {
-			magicType: FILE_LESHORT,
+			magicType: TypeLeshort,
 			typeStr:   "leshort",
 			testValue: "0x1234",
 			wantQ:     0x1234,
 		},
 		"belong": {
-			magicType: FILE_BELONG,
+			magicType: TypeBelong,
 			typeStr:   "belong",
 			testValue: "0x12345678",
 			wantQ:     0x12345678,
 		},
 		"lelong": {
-			magicType: FILE_LELONG,
+			magicType: TypeLelong,
 			typeStr:   "lelong",
 			testValue: "0x12345678",
 			wantQ:     0x12345678,
@@ -118,19 +118,19 @@ func TestGetValue(t *testing.T) {
 
 		// Float types
 		"float": {
-			magicType: FILE_FLOAT,
+			magicType: TypeFloat,
 			typeStr:   "float",
 			testValue: "3.14159",
 			wantF:     3.14159,
 		},
 		"befloat": {
-			magicType: FILE_BEFLOAT,
+			magicType: TypeBefloat,
 			typeStr:   "befloat",
 			testValue: "-2.71828",
 			wantF:     -2.71828,
 		},
 		"lefloat": {
-			magicType: FILE_LEFLOAT,
+			magicType: TypeLefloat,
 			typeStr:   "lefloat",
 			testValue: "1.23456e10",
 			wantF:     1.23456e10,
@@ -138,19 +138,19 @@ func TestGetValue(t *testing.T) {
 
 		// Double types
 		"double": {
-			magicType: FILE_DOUBLE,
+			magicType: TypeDouble,
 			typeStr:   "double",
 			testValue: "3.141592653589793",
 			wantD:     3.141592653589793,
 		},
 		"bedouble": {
-			magicType: FILE_BEDOUBLE,
+			magicType: TypeBedouble,
 			typeStr:   "bedouble",
 			testValue: "-2.718281828459045",
 			wantD:     -2.718281828459045,
 		},
 		"ledouble": {
-			magicType: FILE_LEDOUBLE,
+			magicType: TypeLedouble,
 			typeStr:   "ledouble",
 			testValue: "1.23456789e100",
 			wantD:     1.23456789e100,
@@ -158,37 +158,37 @@ func TestGetValue(t *testing.T) {
 
 		// String types
 		"string simple": {
-			magicType: FILE_STRING,
+			magicType: TypeString,
 			typeStr:   "string",
 			testValue: "Hello",
 			wantS:     "Hello",
 		},
 		"string with spaces": {
-			magicType: FILE_STRING,
+			magicType: TypeString,
 			typeStr:   "string",
 			testValue: "Hello\\ World",
 			wantS:     "Hello World",
 		},
 		"string with escapes": {
-			magicType: FILE_STRING,
+			magicType: TypeString,
 			typeStr:   "string",
 			testValue: "\\x48\\x65\\x6c\\x6c\\x6f",
 			wantS:     "Hello",
 		},
 		"string with newline": {
-			magicType: FILE_STRING,
+			magicType: TypeString,
 			typeStr:   "string",
 			testValue: "Line1\\nLine2",
 			wantS:     "Line1\nLine2",
 		},
 		"pstring": {
-			magicType: FILE_PSTRING,
+			magicType: TypePstring,
 			typeStr:   "pstring",
 			testValue: "Test\\x00String",
 			wantS:     "Test\x00String",
 		},
 		"bestring16": {
-			magicType: FILE_BESTRING16,
+			magicType: TypeBestring16,
 			typeStr:   "bestring16",
 			testValue: "UTF-16\\x00Test",
 			wantS:     "UTF-16\x00Test",
@@ -196,13 +196,13 @@ func TestGetValue(t *testing.T) {
 
 		// GUID type
 		"guid with dashes": {
-			magicType: FILE_GUID,
+			magicType: TypeGuid,
 			typeStr:   "guid",
 			testValue: "12345678-9ABC-DEF0-1234-56789ABCDEF0",
 			wantGuid:  [2]uint64{0x123456789ABCDEF0, 0x123456789ABCDEF0},
 		},
 		"guid without dashes": {
-			magicType: FILE_GUID,
+			magicType: TypeGuid,
 			typeStr:   "guid",
 			testValue: "123456789ABCDEF0123456789ABCDEF0",
 			wantGuid:  [2]uint64{0x123456789ABCDEF0, 0x123456789ABCDEF0},
@@ -210,7 +210,7 @@ func TestGetValue(t *testing.T) {
 
 		// Special cases
 		"x relation": {
-			magicType: FILE_LONG,
+			magicType: TypeLong,
 			typeStr:   "long",
 			reln:      'x',
 			testValue: "",
@@ -219,37 +219,37 @@ func TestGetValue(t *testing.T) {
 
 		// Error cases
 		"invalid number": {
-			magicType: FILE_LONG,
+			magicType: TypeLong,
 			typeStr:   "long",
 			testValue: "not_a_number",
 			wantErr:   true,
 		},
 		"overflow byte": {
-			magicType: FILE_BYTE,
+			magicType: TypeByte,
 			typeStr:   "byte",
 			testValue: "256",
 			wantErr:   true,
 		},
 		"overflow short": {
-			magicType: FILE_SHORT,
+			magicType: TypeShort,
 			typeStr:   "short",
 			testValue: "65536",
 			wantErr:   true,
 		},
 		"invalid float": {
-			magicType: FILE_FLOAT,
+			magicType: TypeFloat,
 			typeStr:   "float",
 			testValue: "not_a_float",
 			wantErr:   true,
 		},
 		"invalid guid": {
-			magicType: FILE_GUID,
+			magicType: TypeGuid,
 			typeStr:   "guid",
 			testValue: "invalid-guid",
 			wantErr:   true,
 		},
 		"empty numeric value": {
-			magicType: FILE_LONG,
+			magicType: TypeLong,
 			typeStr:   "long",
 			testValue: "",
 			wantErr:   true,
@@ -280,21 +280,21 @@ func TestGetValue(t *testing.T) {
 
 			// Check the appropriate field based on type
 			switch tt.magicType {
-			case FILE_FLOAT, FILE_BEFLOAT, FILE_LEFLOAT:
+			case TypeFloat, TypeBefloat, TypeLefloat:
 				if !floatEquals(m.Value.F, tt.wantF) {
 					t.Errorf("getValue() Value.F = %v, want %v", m.Value.F, tt.wantF)
 				}
-			case FILE_DOUBLE, FILE_BEDOUBLE, FILE_LEDOUBLE:
+			case TypeDouble, TypeBedouble, TypeLedouble:
 				if !float64Equals(m.Value.D, tt.wantD) {
 					t.Errorf("getValue() Value.D = %v, want %v", m.Value.D, tt.wantD)
 				}
-			case FILE_STRING, FILE_PSTRING, FILE_BESTRING16, FILE_LESTRING16,
-				FILE_REGEX, FILE_SEARCH, FILE_NAME, FILE_USE, FILE_DER, FILE_OCTAL:
+			case TypeString, TypePstring, TypeBestring16, TypeLestring16,
+				TypeRegex, TypeSearch, TypeName, TypeUse, TypeDer, TypeOctal:
 				gotStr := string(m.Value.S[:m.Vallen])
 				if gotStr != tt.wantS {
 					t.Errorf("getValue() Value.S = %q, want %q", gotStr, tt.wantS)
 				}
-			case FILE_GUID:
+			case TypeGuid:
 				if m.Value.Guid != tt.wantGuid {
 					t.Errorf("getValue() Value.Guid = %v, want %v", m.Value.Guid, tt.wantGuid)
 				}
@@ -309,43 +309,43 @@ func TestGetValue(t *testing.T) {
 
 func TestSignExtension(t *testing.T) {
 	tests := map[string]struct {
-		magicType uint8
+		magicType MagicType
 		typeStr   string
 		testValue string
 		wantQ     uint64
 	}{
 		"byte negative sign extension": {
-			magicType: FILE_BYTE,
+			magicType: TypeByte,
 			typeStr:   "byte",
 			testValue: "-1",
 			wantQ:     math.MaxUint64, // -1 as uint64
 		},
 		"short negative sign extension": {
-			magicType: FILE_SHORT,
+			magicType: TypeShort,
 			typeStr:   "short",
 			testValue: "-1",
 			wantQ:     math.MaxUint64, // -1 as uint64
 		},
 		"long negative sign extension": {
-			magicType: FILE_LONG,
+			magicType: TypeLong,
 			typeStr:   "long",
 			testValue: "-1",
 			wantQ:     math.MaxUint64, // -1 as uint64
 		},
 		"byte 0x80 sign extension": {
-			magicType: FILE_BYTE,
+			magicType: TypeByte,
 			typeStr:   "byte",
 			testValue: "0x80",
 			wantQ:     0xffffffffffffff80, // -128 sign extended
 		},
 		"short 0x8000 sign extension": {
-			magicType: FILE_SHORT,
+			magicType: TypeShort,
 			typeStr:   "short",
 			testValue: "0x8000",
 			wantQ:     0xffffffffffff8000, // -32768 sign extended
 		},
 		"long 0x80000000 sign extension": {
-			magicType: FILE_LONG,
+			magicType: TypeLong,
 			typeStr:   "long",
 			testValue: "0x80000000",
 			wantQ:     0xffffffff80000000, // -2147483648 sign extended
@@ -440,32 +440,32 @@ func TestParseGUID(t *testing.T) {
 
 func TestTypeSize(t *testing.T) {
 	tests := map[string]struct {
-		fileType uint8
+		fileType MagicType
 		want     uint8
 	}{
-		"byte":      {FILE_BYTE, 1},
-		"short":     {FILE_SHORT, 2},
-		"beshort":   {FILE_BESHORT, 2},
-		"leshort":   {FILE_LESHORT, 2},
-		"long":      {FILE_LONG, 4},
-		"belong":    {FILE_BELONG, 4},
-		"lelong":    {FILE_LELONG, 4},
-		"melong":    {FILE_MELONG, 4},
-		"float":     {FILE_FLOAT, 4},
-		"befloat":   {FILE_BEFLOAT, 4},
-		"lefloat":   {FILE_LEFLOAT, 4},
-		"date":      {FILE_DATE, 4},
-		"bedate":    {FILE_BEDATE, 4},
-		"ledate":    {FILE_LEDATE, 4},
-		"quad":      {FILE_QUAD, 8},
-		"bequad":    {FILE_BEQUAD, 8},
-		"lequad":    {FILE_LEQUAD, 8},
-		"double":    {FILE_DOUBLE, 8},
-		"bedouble":  {FILE_BEDOUBLE, 8},
-		"ledouble":  {FILE_LEDOUBLE, 8},
-		"guid":      {FILE_GUID, 16},
-		"invalid":   {FILE_INVALID, 0},
-		"string":    {FILE_STRING, 0},
+		"byte":      {TypeByte, 1},
+		"short":     {TypeShort, 2},
+		"beshort":   {TypeBeshort, 2},
+		"leshort":   {TypeLeshort, 2},
+		"long":      {TypeLong, 4},
+		"belong":    {TypeBelong, 4},
+		"lelong":    {TypeLelong, 4},
+		"melong":    {TypeMelong, 4},
+		"float":     {TypeFloat, 4},
+		"befloat":   {TypeBefloat, 4},
+		"lefloat":   {TypeLefloat, 4},
+		"date":      {TypeDate, 4},
+		"bedate":    {TypeBedate, 4},
+		"ledate":    {TypeLedate, 4},
+		"quad":      {TypeQuad, 8},
+		"bequad":    {TypeBequad, 8},
+		"lequad":    {TypeLequad, 8},
+		"double":    {TypeDouble, 8},
+		"bedouble":  {TypeBedouble, 8},
+		"ledouble":  {TypeLedouble, 8},
+		"guid":      {TypeGuid, 16},
+		"invalid":   {TypeInvalid, 0},
+		"string":    {TypeString, 0},
 	}
 
 	for name, tt := range tests {

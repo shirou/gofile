@@ -8,82 +8,362 @@ const (
 	TEXTTEST
 )
 
-type MagicType string
+type MagicType int8
 
 // Base type constants for magic file types
 const (
+	// Invalid type
+	TypeInvalid MagicType = iota
+	
 	// Numeric types
-	TypeByte               MagicType = "byte"
-	TypeUbyte              MagicType = "ubyte"
-	TypeShort              MagicType = "short"
-	TypeUshort             MagicType = "ushort"
-	TypeBeshort            MagicType = "beshort"
-	TypeLeshort            MagicType = "leshort"
-	TypeBeshort16 MagicType = "beshort16"
-	TypeLeshort16 MagicType = "leshort16"
-	TypeLong               MagicType = "long"
-	TypeUlong              MagicType = "ulong"
-	TypeBelong             MagicType = "belong"
-	TypeLelong             MagicType = "lelong"
-	TypeMelong             MagicType = "melong"
-	TypeQuad               MagicType = "quad"
-	TypeUquad              MagicType = "uquad"
-	TypeBequad             MagicType = "bequad"
-	TypeLequad             MagicType = "lequad"
-	TypeFloat              MagicType = "float"
-	TypeBefloat            MagicType = "befloat"
-	TypeLefloat            MagicType = "lefloat"
-	TypeDouble             MagicType = "double"
-	TypeBedouble           MagicType = "bedouble"
-	TypeLedouble           MagicType = "ledouble"
-	// Date types
-	TypeDate        MagicType = "date"
-	TypeBedate      MagicType = "bedate"
-	TypeLedate      MagicType = "ledate"
-	TypeLdate       MagicType = "ldate"
-	TypeBeldate     MagicType = "beldate"
-	TypeLeldate     MagicType = "leldate"
-	TypeMedate      MagicType = "medate"
-	TypeMeldate     MagicType = "meldate"
-	TypeQdate       MagicType = "qdate"
-	TypeLeqdate     MagicType = "leqdate"
-	TypeBeqdate     MagicType = "beqdate"
-	TypeQldate      MagicType = "qldate"
-	TypeLeqldate    MagicType = "leqldate"
-	TypeBeqldate    MagicType = "beqldate"
-	TypeQwdate      MagicType = "qwdate"
-	TypeLeqwdate    MagicType = "leqwdate"
-	TypeBeqwdate    MagicType = "beqwdate"
-	TypeMsdosdate   MagicType = "msdosdate"
-	TypeBemsdosdate MagicType = "bemsdosdate"
-	TypeLemsdosdate MagicType = "lemsdosdate"
-	TypeMsdostime   MagicType = "msdostime"
-	TypeBemsdostime MagicType = "bemsdostime"
-	TypeLemsdostime MagicType = "lemsdostime"
-
-	// Variable-length integer types
-	TypeBevarint MagicType = "bevarint"
-	TypeLevarint MagicType = "levarint"
-
-	// Special types
-	TypeDer      MagicType = "der"
-	TypeGuid     MagicType = "guid"
-	TypeOffset   MagicType = "offset"
-	TypeOctal    MagicType = "octal"
-	TypeIndirect MagicType = "indirect"
-	TypeDefault  MagicType = "default"
-	TypeClear    MagicType = "clear"
-	TypeName     MagicType = "name"
-	TypeUse      MagicType = "use"
-
-	// String types
-	TypeString     MagicType = "string"
-	TypePstring    MagicType = "pstring"
-	TypeBestring16 MagicType = "bestring16"
-	TypeLestring16 MagicType = "lestring16"
-	TypeRegex      MagicType = "regex"
-	TypeSearch     MagicType = "search"
+	TypeByte
+	TypeShort
+	TypeDefault
+	TypeLong
+	TypeString
+	TypeDate
+	TypeBeshort
+	TypeBelong
+	TypeBedate
+	TypeLeshort
+	TypeLelong
+	TypeLedate
+	TypePstring
+	TypeLdate
+	TypeBeldate
+	TypeLeldate
+	TypeRegex
+	TypeBestring16
+	TypeLestring16
+	TypeSearch
+	TypeMedate
+	TypeMeldate
+	TypeMelong
+	TypeQuad
+	TypeLequad
+	TypeBequad
+	TypeQdate
+	TypeLeqdate
+	TypeBeqdate
+	TypeQldate
+	TypeLeqldate
+	TypeBeqldate
+	TypeFloat
+	TypeBefloat
+	TypeLefloat
+	TypeDouble
+	TypeBedouble
+	TypeLedouble
+	TypeLeid3
+	TypeBeid3
+	TypeIndirect
+	TypeQwdate
+	TypeLeqwdate
+	TypeBeqwdate
+	TypeName
+	TypeUse
+	TypeClear
+	TypeDer
+	TypeGuid
+	TypeOffset
+	TypeBevarint
+	TypeLevarint
+	TypeMsdosdate
+	TypeLemsdosdate
+	TypeBemsdosdate
+	TypeMsdostime
+	TypeLemsdostime
+	TypeBemsdostime
+	TypeOctal
+	
+	// Additional types not in FILE_* constants
+	TypeUbyte
+	TypeUshort
+	TypeBeshort16
+	TypeLeshort16
+	TypeUlong
+	TypeUquad
 )
+
+// ToString returns the string representation of a MagicType
+func (t MagicType) ToString() string {
+	switch t {
+	case TypeInvalid:
+		return "invalid"
+	case TypeByte:
+		return "byte"
+	case TypeShort:
+		return "short"
+	case TypeDefault:
+		return "default"
+	case TypeLong:
+		return "long"
+	case TypeString:
+		return "string"
+	case TypeDate:
+		return "date"
+	case TypeBeshort:
+		return "beshort"
+	case TypeBelong:
+		return "belong"
+	case TypeBedate:
+		return "bedate"
+	case TypeLeshort:
+		return "leshort"
+	case TypeLelong:
+		return "lelong"
+	case TypeLedate:
+		return "ledate"
+	case TypePstring:
+		return "pstring"
+	case TypeLdate:
+		return "ldate"
+	case TypeBeldate:
+		return "beldate"
+	case TypeLeldate:
+		return "leldate"
+	case TypeRegex:
+		return "regex"
+	case TypeBestring16:
+		return "bestring16"
+	case TypeLestring16:
+		return "lestring16"
+	case TypeSearch:
+		return "search"
+	case TypeMedate:
+		return "medate"
+	case TypeMeldate:
+		return "meldate"
+	case TypeMelong:
+		return "melong"
+	case TypeQuad:
+		return "quad"
+	case TypeLequad:
+		return "lequad"
+	case TypeBequad:
+		return "bequad"
+	case TypeQdate:
+		return "qdate"
+	case TypeLeqdate:
+		return "leqdate"
+	case TypeBeqdate:
+		return "beqdate"
+	case TypeQldate:
+		return "qldate"
+	case TypeLeqldate:
+		return "leqldate"
+	case TypeBeqldate:
+		return "beqldate"
+	case TypeFloat:
+		return "float"
+	case TypeBefloat:
+		return "befloat"
+	case TypeLefloat:
+		return "lefloat"
+	case TypeDouble:
+		return "double"
+	case TypeBedouble:
+		return "bedouble"
+	case TypeLedouble:
+		return "ledouble"
+	case TypeLeid3:
+		return "leid3"
+	case TypeBeid3:
+		return "beid3"
+	case TypeIndirect:
+		return "indirect"
+	case TypeQwdate:
+		return "qwdate"
+	case TypeLeqwdate:
+		return "leqwdate"
+	case TypeBeqwdate:
+		return "beqwdate"
+	case TypeName:
+		return "name"
+	case TypeUse:
+		return "use"
+	case TypeClear:
+		return "clear"
+	case TypeDer:
+		return "der"
+	case TypeGuid:
+		return "guid"
+	case TypeOffset:
+		return "offset"
+	case TypeBevarint:
+		return "bevarint"
+	case TypeLevarint:
+		return "levarint"
+	case TypeMsdosdate:
+		return "msdosdate"
+	case TypeLemsdosdate:
+		return "lemsdosdate"
+	case TypeBemsdosdate:
+		return "bemsdosdate"
+	case TypeMsdostime:
+		return "msdostime"
+	case TypeLemsdostime:
+		return "lemsdostime"
+	case TypeBemsdostime:
+		return "bemsdostime"
+	case TypeOctal:
+		return "octal"
+	case TypeUbyte:
+		return "ubyte"
+	case TypeUshort:
+		return "ushort"
+	case TypeBeshort16:
+		return "beshort16"
+	case TypeLeshort16:
+		return "leshort16"
+	case TypeUlong:
+		return "ulong"
+	case TypeUquad:
+		return "uquad"
+	default:
+		return "unknown"
+	}
+}
+
+// MagicTypeFromString converts a string to a MagicType
+func MagicTypeFromString(s string) MagicType {
+	switch s {
+	case "invalid":
+		return TypeInvalid
+	case "byte":
+		return TypeByte
+	case "short":
+		return TypeShort
+	case "default":
+		return TypeDefault
+	case "long":
+		return TypeLong
+	case "string":
+		return TypeString
+	case "date":
+		return TypeDate
+	case "beshort":
+		return TypeBeshort
+	case "belong":
+		return TypeBelong
+	case "bedate":
+		return TypeBedate
+	case "leshort":
+		return TypeLeshort
+	case "lelong":
+		return TypeLelong
+	case "ledate":
+		return TypeLedate
+	case "pstring":
+		return TypePstring
+	case "ldate":
+		return TypeLdate
+	case "beldate":
+		return TypeBeldate
+	case "leldate":
+		return TypeLeldate
+	case "regex":
+		return TypeRegex
+	case "bestring16":
+		return TypeBestring16
+	case "lestring16":
+		return TypeLestring16
+	case "search":
+		return TypeSearch
+	case "medate":
+		return TypeMedate
+	case "meldate":
+		return TypeMeldate
+	case "melong":
+		return TypeMelong
+	case "quad":
+		return TypeQuad
+	case "lequad":
+		return TypeLequad
+	case "bequad":
+		return TypeBequad
+	case "qdate":
+		return TypeQdate
+	case "leqdate":
+		return TypeLeqdate
+	case "beqdate":
+		return TypeBeqdate
+	case "qldate":
+		return TypeQldate
+	case "leqldate":
+		return TypeLeqldate
+	case "beqldate":
+		return TypeBeqldate
+	case "float":
+		return TypeFloat
+	case "befloat":
+		return TypeBefloat
+	case "lefloat":
+		return TypeLefloat
+	case "double":
+		return TypeDouble
+	case "bedouble":
+		return TypeBedouble
+	case "ledouble":
+		return TypeLedouble
+	case "leid3":
+		return TypeLeid3
+	case "beid3":
+		return TypeBeid3
+	case "indirect":
+		return TypeIndirect
+	case "qwdate":
+		return TypeQwdate
+	case "leqwdate":
+		return TypeLeqwdate
+	case "beqwdate":
+		return TypeBeqwdate
+	case "name":
+		return TypeName
+	case "use":
+		return TypeUse
+	case "clear":
+		return TypeClear
+	case "der":
+		return TypeDer
+	case "guid":
+		return TypeGuid
+	case "offset":
+		return TypeOffset
+	case "bevarint":
+		return TypeBevarint
+	case "levarint":
+		return TypeLevarint
+	case "msdosdate":
+		return TypeMsdosdate
+	case "lemsdosdate":
+		return TypeLemsdosdate
+	case "bemsdosdate":
+		return TypeBemsdosdate
+	case "msdostime":
+		return TypeMsdostime
+	case "lemsdostime":
+		return TypeLemsdostime
+	case "bemsdostime":
+		return TypeBemsdostime
+	case "octal":
+		return TypeOctal
+	case "ubyte":
+		return TypeUbyte
+	case "ushort":
+		return TypeUshort
+	case "beshort16":
+		return TypeBeshort16
+	case "leshort16":
+		return TypeLeshort16
+	case "ulong":
+		return TypeUlong
+	case "uquad":
+		return TypeUquad
+	default:
+		return TypeInvalid
+	}
+}
 
 // Mask operation constants (matching file command's FILE_OPS_* definitions)
 const (
@@ -140,66 +420,4 @@ const (
 	FILE_FACTOR_OP_DIV   uint8 = '/' // '/' - division
 )
 
-// File type constants (numeric values for Magic.Type field)
-const (
-	FILE_INVALID uint8 = iota
-	FILE_BYTE
-	FILE_SHORT
-	FILE_DEFAULT
-	FILE_LONG
-	FILE_STRING
-	FILE_DATE
-	FILE_BESHORT
-	FILE_BELONG
-	FILE_BEDATE
-	FILE_LESHORT
-	FILE_LELONG
-	FILE_LEDATE
-	FILE_PSTRING
-	FILE_LDATE
-	FILE_BELDATE
-	FILE_LELDATE
-	FILE_REGEX
-	FILE_BESTRING16
-	FILE_LESTRING16
-	FILE_SEARCH
-	FILE_MEDATE
-	FILE_MELDATE
-	FILE_MELONG
-	FILE_QUAD
-	FILE_LEQUAD
-	FILE_BEQUAD
-	FILE_QDATE
-	FILE_LEQDATE
-	FILE_BEQDATE
-	FILE_QLDATE
-	FILE_LEQLDATE
-	FILE_BEQLDATE
-	FILE_FLOAT
-	FILE_BEFLOAT
-	FILE_LEFLOAT
-	FILE_DOUBLE
-	FILE_BEDOUBLE
-	FILE_LEDOUBLE
-	FILE_LEID3
-	FILE_BEID3
-	FILE_INDIRECT
-	FILE_QWDATE
-	FILE_LEQWDATE
-	FILE_BEQWDATE
-	FILE_NAME
-	FILE_USE
-	FILE_CLEAR
-	FILE_DER
-	FILE_GUID
-	FILE_OFFSET
-	FILE_BEVARINT
-	FILE_LEVARINT
-	FILE_MSDOSDATE
-	FILE_LEMSDOSDATE
-	FILE_BEMSDOSDATE
-	FILE_MSDOSTIME
-	FILE_LEMSDOSTIME
-	FILE_BEMSDOSTIME
-	FILE_OCTAL
-)
+// Note: File type constants have been replaced by MagicType constants above

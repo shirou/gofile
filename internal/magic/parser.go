@@ -52,7 +52,7 @@ func (p *Parser) addEntry(me *Entry) {
 
 	// Determine which set based on type (FILE_NAME goes to set 1, others to set 0)
 	setIndex := 0
-	if me.Mp.Type == FILE_NAME {
+	if me.Mp.Type == TypeName {
 		setIndex = 1
 	}
 
@@ -99,6 +99,7 @@ func (p *Parser) LoadOne(r io.Reader, filename string) error {
 		if line[0] == '#' || line[0] == '\x00' {
 			continue
 		}
+		
 
 		// Handle bang directives (!:mime, !:apple, !:ext, !:strength)
 		if len(line) > 2 && line[0] == '!' && line[1] == ':' {
@@ -293,7 +294,7 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 
 	// Parse indirect offset details if present
 	if m.Flag&INDIR != 0 {
-		m.InType = FILE_LONG
+		m.InType = TypeLong
 		m.InOffset = 0
 		m.InOp = 0
 
@@ -307,31 +308,31 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 			if len(l) > 0 {
 				switch l[0] {
 				case 'l':
-					m.InType = FILE_LELONG
+					m.InType = TypeLelong
 				case 'L':
-					m.InType = FILE_BELONG
+					m.InType = TypeBelong
 				case 'm':
-					m.InType = FILE_MELONG
+					m.InType = TypeMelong
 				case 'h', 's':
-					m.InType = FILE_LESHORT
+					m.InType = TypeLeshort
 				case 'H', 'S':
-					m.InType = FILE_BESHORT
+					m.InType = TypeBeshort
 				case 'c', 'b', 'C', 'B':
-					m.InType = FILE_BYTE
+					m.InType = TypeByte
 				case 'e', 'f', 'g':
-					m.InType = FILE_LEDOUBLE
+					m.InType = TypeLedouble
 				case 'E', 'F', 'G':
-					m.InType = FILE_BEDOUBLE
+					m.InType = TypeBedouble
 				case 'i':
-					m.InType = FILE_LEID3
+					m.InType = TypeLeid3
 				case 'I':
-					m.InType = FILE_BEID3
+					m.InType = TypeBeid3
 				case 'o':
-					m.InType = FILE_OCTAL
+					m.InType = TypeOctal
 				case 'q':
-					m.InType = FILE_LEQUAD
+					m.InType = TypeLequad
 				case 'Q':
-					m.InType = FILE_BEQUAD
+					m.InType = TypeBequad
 				default:
 					return nil, fmt.Errorf("indirect offset type '%c' invalid", l[0])
 				}
@@ -392,12 +393,12 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 		l = l[1:]
 		magicType, rest, err := getType(l)
 		if err == nil {
-			typeStr = string(magicType)
+			typeStr = magicType.ToString()
 			l = rest
 		} else {
 			// Try as SUS integer type
 			magicType, rest := getStandardIntegerType("u" + l)
-			typeStr = string(magicType)
+			typeStr = magicType.ToString()
 			l = rest
 		}
 		m.Flag |= UNSIGNED
@@ -405,13 +406,13 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 		// Regular type
 		magicType, rest, err := getType(l)
 		if err == nil {
-			typeStr = string(magicType)
+			typeStr = magicType.ToString()
 			l = rest
 		} else {
 			// Try SUS integer type
 			if len(l) > 0 && l[0] == 'd' {
 				magicType, rest := getStandardIntegerType(l)
-				typeStr = string(magicType)
+				typeStr = magicType.ToString()
 				l = rest
 			} else if len(l) > 0 && l[0] == 's' && (len(l) == 1 || !isAlpha(l[1])) {
 				typeStr = "string"
@@ -430,6 +431,12 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 	}
 
 	m.TypeStr = typeStr
+	
+	// Convert TypeStr to Type enum
+	m.Type = StringToMagicType(typeStr)
+	if m.Type == TypeInvalid {
+		return nil, fmt.Errorf("invalid magic type '%s'", typeStr)
+	}
 
 	// Check FILE_NAME restrictions
 	if typeStr == "name" && contLevel != 0 {
@@ -782,11 +789,11 @@ func getType(s string) (MagicType, string, error) {
 
 	for _, typ := range types {
 		if strings.HasPrefix(s, typ) {
-			return MagicType(typ), s[len(typ):], nil // rest of the string
+			return MagicTypeFromString(typ), s[len(typ):], nil // rest of the string
 		}
 	}
 
-	return "", s, fmt.Errorf("unknown type: %s", s)
+	return TypeInvalid, s, fmt.Errorf("unknown type: %s", s)
 }
 
 // getSpecialType extracts special type names
@@ -807,7 +814,7 @@ func getSpecialType(s string) (string, string) {
 // getStandardIntegerType parses SUS integer types (d, dC, dS, dL, dQ, u, uC, uS, uL, uQ)
 func getStandardIntegerType(s string) (MagicType, string) {
 	if len(s) < 1 {
-		return "", s
+		return TypeInvalid, s
 	}
 
 	unsigned := false
@@ -819,7 +826,7 @@ func getStandardIntegerType(s string) (MagicType, string) {
 	} else if s[0] == 'd' {
 		idx = 1
 	} else {
-		return "", s
+		return TypeInvalid, s
 	}
 
 	if idx >= len(s) {
@@ -1311,8 +1318,8 @@ func fileMagicStrength(m *Magic, _ uint32) int {
 func getValue(m *Magic, p string) error {
 	// Handle string types
 	switch m.Type {
-	case FILE_BESTRING16, FILE_LESTRING16, FILE_STRING, FILE_PSTRING,
-		FILE_REGEX, FILE_SEARCH, FILE_NAME, FILE_USE, FILE_DER, FILE_OCTAL:
+	case TypeBestring16, TypeLestring16, TypeString, TypePstring,
+		TypeRegex, TypeSearch, TypeName, TypeUse, TypeDer, TypeOctal:
 		// Parse string value using getStr
 		parsedStr, err := getStr(p, false)
 		if err != nil {
@@ -1335,7 +1342,7 @@ func getValue(m *Magic, p string) error {
 		
 		return nil
 		
-	case FILE_FLOAT, FILE_BEFLOAT, FILE_LEFLOAT:
+	case TypeFloat, TypeBefloat, TypeLefloat:
 		// Parse as float32
 		val, err := strconv.ParseFloat(strings.TrimSpace(p), 32)
 		if err != nil {
@@ -1344,7 +1351,7 @@ func getValue(m *Magic, p string) error {
 		m.Value.F = float32(val)
 		return nil
 		
-	case FILE_DOUBLE, FILE_BEDOUBLE, FILE_LEDOUBLE:
+	case TypeDouble, TypeBedouble, TypeLedouble:
 		// Parse as float64
 		val, err := strconv.ParseFloat(strings.TrimSpace(p), 64)
 		if err != nil {
@@ -1353,7 +1360,7 @@ func getValue(m *Magic, p string) error {
 		m.Value.D = val
 		return nil
 		
-	case FILE_GUID:
+	case TypeGuid:
 		// Parse GUID
 		guid, err := parseGUID(p)
 		if err != nil {
@@ -1484,26 +1491,26 @@ func parseGUID(s string) ([2]uint64, error) {
 }
 
 // typeSize returns the size in bytes for a given type
-func typeSize(t uint8) uint8 {
+func typeSize(t MagicType) uint8 {
 	switch t {
-	case FILE_BYTE:
+	case TypeByte, TypeUbyte:
 		return 1
-	case FILE_SHORT, FILE_BESHORT, FILE_LESHORT:
+	case TypeShort, TypeUshort, TypeBeshort, TypeLeshort, TypeBeshort16, TypeLeshort16:
 		return 2
-	case FILE_LONG, FILE_BELONG, FILE_LELONG, FILE_MELONG,
-		FILE_FLOAT, FILE_BEFLOAT, FILE_LEFLOAT,
-		FILE_DATE, FILE_BEDATE, FILE_LEDATE, FILE_LDATE,
-		FILE_BELDATE, FILE_LELDATE, FILE_MEDATE, FILE_MELDATE,
-		FILE_MSDOSDATE, FILE_BEMSDOSDATE, FILE_LEMSDOSDATE,
-		FILE_MSDOSTIME, FILE_BEMSDOSTIME, FILE_LEMSDOSTIME:
+	case TypeLong, TypeUlong, TypeBelong, TypeLelong, TypeMelong,
+		TypeFloat, TypeBefloat, TypeLefloat,
+		TypeDate, TypeBedate, TypeLedate, TypeLdate,
+		TypeBeldate, TypeLeldate, TypeMedate, TypeMeldate,
+		TypeMsdosdate, TypeBemsdosdate, TypeLemsdosdate,
+		TypeMsdostime, TypeBemsdostime, TypeLemsdostime:
 		return 4
-	case FILE_QUAD, FILE_BEQUAD, FILE_LEQUAD,
-		FILE_DOUBLE, FILE_BEDOUBLE, FILE_LEDOUBLE,
-		FILE_QDATE, FILE_LEQDATE, FILE_BEQDATE,
-		FILE_QLDATE, FILE_LEQLDATE, FILE_BEQLDATE,
-		FILE_QWDATE, FILE_LEQWDATE, FILE_BEQWDATE:
+	case TypeQuad, TypeUquad, TypeBequad, TypeLequad,
+		TypeDouble, TypeBedouble, TypeLedouble,
+		TypeQdate, TypeLeqdate, TypeBeqdate,
+		TypeQldate, TypeLeqldate, TypeBeqldate,
+		TypeQwdate, TypeLeqwdate, TypeBeqwdate:
 		return 8
-	case FILE_GUID:
+	case TypeGuid:
 		return 16
 	default:
 		return 0
