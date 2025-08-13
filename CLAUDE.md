@@ -96,10 +96,11 @@ This document explains the magic strength system for pattern priority:
    - File type detector
    - Strength calculator
 
-2. **Command-Line Tool** (`cmd/file/main.go`)
-   - Argument parser
+2. **Command-Line Tool** (`cmd/gofile/main.go`)
+   - Argument parser  
    - Option handling
    - Output formatting
+   - Produces executable binary named "gofile"
 
 3. **Internal Packages**
    - `internal/magic/parser.go`: Magic file parsing
@@ -119,8 +120,8 @@ This document explains the magic strength system for pattern priority:
 ```
 gofile/
 ├── cmd/
-│   └── file/
-│       └── main.go          # CLI entry point
+│   └── gofile/
+│       └── main.go          # CLI entry point (builds "gofile" binary)
 ├── internal/
 │   └── magic/
 │       ├── parser.go         # Magic file parser
@@ -222,7 +223,7 @@ This approach provides:
 1. Implement the magic file parser based on the format specification
 2. Create the pattern matching engine with all data types
 3. Build the strength calculation system
-4. Develop the CLI tool with all documented options
+4. Develop the CLI tool with all documented options (gofile binary)
 5. Create comprehensive test suites
 6. Optimize performance based on profiling results
 7. Document the Go API for library usage

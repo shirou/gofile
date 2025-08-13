@@ -84,9 +84,9 @@ func TestListCommandComparison(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Allow parallel execution for better performance
-			if *specificFile == "" {
-				t.Parallel()
-			}
+			// if *specificFile == "" {
+			// 	t.Parallel()
+			// }
 
 			// Ensure magic file is copied to test directory
 			if err := ensureMagicFile(tt.sourceFile, tt.destFile); err != nil {
@@ -131,7 +131,7 @@ func TestListCommandComparison(t *testing.T) {
 					t.Errorf("Output mismatch for %s:\n%s", tt.magicFile, diff)
 					t.Logf("Run with -verbose-diff for detailed differences")
 				}
-				
+
 				// Optionally save actual output for debugging
 				actualFile := tt.expectFile + ".actual"
 				if err := os.WriteFile(actualFile, actualOutput, 0644); err != nil {
@@ -153,16 +153,16 @@ func TestListCommandSpecificFiles(t *testing.T) {
 
 	// Important magic files to test
 	importantFiles := []string{
-		"elf",          // Executable and Linkable Format
-		"jpeg",         // JPEG images
-		"pdf",          // PDF documents
-		"compress",     // Compressed files
-		"archive",      // Archive formats
-		"python",       // Python files
-		"java",         // Java class files
-		"msdos",        // MS-DOS executables
-		"linux",        // Linux-specific formats
-		"filesystems",  // File system formats
+		"elf",         // Executable and Linkable Format
+		"jpeg",        // JPEG images
+		"pdf",         // PDF documents
+		"compress",    // Compressed files
+		"archive",     // Archive formats
+		"python",      // Python files
+		"java",        // Java class files
+		"msdos",       // MS-DOS executables
+		"linux",       // Linux-specific formats
+		"filesystems", // File system formats
 	}
 
 	// Build gofile binary
@@ -242,7 +242,7 @@ func TestListCommandSpecificFiles(t *testing.T) {
 			// Compare
 			if equal, diff := compareOutputs(actualOutput, expectedOutput); !equal {
 				t.Errorf("Output mismatch for %s:\n%s", tt.magicFile, diff)
-				
+
 				// Save actual output for debugging
 				actualFile := tt.expectFile + ".actual"
 				if err := os.WriteFile(actualFile, actualOutput, 0644); err != nil {
@@ -291,7 +291,7 @@ func TestListCommandBasic(t *testing.T) {
 
 	// Basic validation
 	outputStr := string(output)
-	
+
 	// Check that output contains expected sections
 	if !contains(outputStr, "Set 0:") && !contains(outputStr, "Set 1:") {
 		t.Error("Output doesn't contain expected Set headers")
@@ -313,9 +313,9 @@ func TestListCommandBasic(t *testing.T) {
 // Helper functions
 
 func contains(s, substr string) bool {
-	return filepath.Clean(s) != filepath.Clean(substr) && 
-	       len(s) >= len(substr) && 
-	       findSubstring(s, substr) >= 0
+	return filepath.Clean(s) != filepath.Clean(substr) &&
+		len(s) >= len(substr) &&
+		findSubstring(s, substr) >= 0
 }
 
 func findSubstring(s, substr string) int {

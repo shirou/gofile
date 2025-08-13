@@ -5,7 +5,7 @@ all: build
 
 # Build the gofile binary
 build:
-	go build -o gofile ./cmd/file
+	go build -o gofile ./cmd/gofile
 
 # Run all tests (excluding golden tests)
 test:
@@ -52,7 +52,7 @@ lint:
 # Clean build artifacts
 clean:
 	rm -f gofile
-	rm -f cmd/file/file
+	rm -f cmd/gofile/gofile
 	rm -rf test/golden/Magdir/*.expected.actual
 	go clean -testcache
 
@@ -64,12 +64,12 @@ coverage:
 
 # Check that gofile can be built
 check:
-	go build -o /tmp/gofile-test ./cmd/file && rm /tmp/gofile-test
+	go build -o /tmp/gofile-test ./cmd/gofile && rm /tmp/gofile-test
 	@echo "Build check passed"
 
 # Install gofile to GOPATH/bin
 install:
-	go install ./cmd/file
+	go install ./cmd/gofile
 
 # Help target
 help:
