@@ -99,21 +99,47 @@ func (p *Parser) addEntry(me *Entry) {
 
 // LoadOne loads magic data from a reader (port of load_1 from apprentice.c)
 func (p *Parser) LoadOne(r io.Reader, filename string) error {
-	scanner := bufio.NewScanner(r)
-	lineNumber := 0
+	reader := bufio.NewReader(r)
+	lineNumber := 0  // Start at 0 like C implementation
 	var me Entry // Current magic entry being processed (like C's me)
 
-	for scanner.Scan() {
-		lineNumber++
-		line := scanner.Text()
+	for {
+		lineStr, err := reader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return fmt.Errorf("error reading magic file: %w", err)
+		}
+		
+		// Check if we're done
+		if len(lineStr) == 0 && err == io.EOF {
+			break
+		}
+
+		// Increment line number if we have a newline (matching C behavior)
+		// C increments AFTER reading a line with newline
+		hasNewline := len(lineStr) > 0 && lineStr[len(lineStr)-1] == '\n'
+		if hasNewline {
+			lineNumber++
+			// Remove the newline
+			lineStr = lineStr[:len(lineStr)-1]
+		}
+		// If there's no newline (last line), don't increment lineNumber
+		// Use current lineNumber for this line
+
+		line := lineStr
 
 		// Handle empty lines (skip them) - corresponds to len == 0 check in C
 		if len(line) == 0 {
+			if err == io.EOF {
+				break
+			}
 			continue
 		}
 
 		// Skip comments (lines starting with #) and empty lines after stripping newline
 		if line[0] == '#' || line[0] == '\x00' {
+			if err == io.EOF {
+				break
+			}
 			continue
 		}
 
@@ -124,15 +150,21 @@ func (p *Parser) LoadOne(r io.Reader, filename string) error {
 				// parseExtra handles !:mime, !:apple, !:ext, !:strength
 				p.parseExtra(line, &me)
 			}
+			if err == io.EOF {
+				break
+			}
 			continue
 		}
 
 		// default case in C switch - parse the line
 	again:
 		// Parse the magic line - returns (shouldAdd, error)
-		shouldAdd, err := p.parseLineWithResult(&me, line, lineNumber, filename)
-		if err != nil {
-			p.errors = append(p.errors, fmt.Errorf("line %d: %w", lineNumber, err))
+		shouldAdd, parseErr := p.parseLineWithResult(&me, line, lineNumber, filename)
+		if parseErr != nil {
+			p.errors = append(p.errors, fmt.Errorf("line %d: %w", lineNumber, parseErr))
+			if err == io.EOF {
+				break
+			}
 			continue
 		}
 
@@ -146,6 +178,11 @@ func (p *Parser) LoadOne(r io.Reader, filename string) error {
 			// Now parse the same line again as a new top-level entry
 			goto again // C code uses goto again to reparse
 		}
+		
+		// Check if we're at EOF
+		if err == io.EOF {
+			break
+		}
 		// Otherwise continue to next line
 	}
 
@@ -153,10 +190,6 @@ func (p *Parser) LoadOne(r io.Reader, filename string) error {
 	if me.Mp != nil {
 		copyEntry := me
 		p.addEntry(&copyEntry)
-	}
-
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading magic file: %w", err)
 	}
 
 	return nil
