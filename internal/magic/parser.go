@@ -145,10 +145,19 @@ func (p *Parser) LoadOne(r io.Reader, filename string) error {
 
 		// Handle bang directives (!:mime, !:apple, !:ext, !:strength)
 		if len(line) > 2 && line[0] == '!' && line[1] == ':' {
-			// In C code, this operates on 'me' (current magic entry)
-			if me.Mp != nil {
+			// Find the entry to apply the directive to
+			// It should be applied to the most recently added entry
+			var targetEntry *Entry = &me
+			
+			// If there are children, the directive applies to the last child at the deepest level
+			if me.Mp != nil && me.ContCount > 1 {
+				// Find the most recently added entry
+				targetEntry = p.findLastAddedEntry(&me)
+			}
+			
+			if targetEntry != nil && targetEntry.Mp != nil {
 				// parseExtra handles !:mime, !:apple, !:ext, !:strength
-				p.parseExtra(line, &me)
+				p.parseExtra(line, targetEntry)
 			}
 			if err == io.EOF {
 				break
@@ -1091,6 +1100,30 @@ func (p *Parser) GetErrors() []error {
 }
 
 // OrganizeSets organizes entries into sets for --list output
+// findLastAddedEntry finds the most recently added entry in the hierarchy
+// This is used to determine which entry a !:directive should apply to
+func (p *Parser) findLastAddedEntry(entry *Entry) *Entry {
+	if entry == nil {
+		return nil
+	}
+	
+	// Start with the current entry
+	current := entry
+	
+	// Traverse down to find the deepest recently added child
+	for len(current.Children) > 0 {
+		// Get the last child (most recently added)
+		lastChild := current.Children[len(current.Children)-1]
+		if lastChild.Mp != nil {
+			current = lastChild
+		} else {
+			break
+		}
+	}
+	
+	return current
+}
+
 func (p *Parser) OrganizeSets() {
 	// Ensure we always have at least 2 sets (Set 0 and Set 1)
 	// This matches the reference implementation's MAGIC_SETS = 2

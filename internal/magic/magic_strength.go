@@ -233,6 +233,13 @@ func (m *Magic) apprenticeMagicStrength() int {
 		val = 1
 	}
 
+	// Magic entries with no description get a bonus because they depend
+	// on subsequent magic entries to print something.
+	// This matches the original file command behavior.
+	if m.MessageStr == "" {
+		val++
+	}
+
 	return val
 }
 

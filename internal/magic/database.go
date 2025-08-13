@@ -22,6 +22,53 @@ func SortEntriesByStrength(entries []*Entry) {
 	})
 }
 
+// findFirstMessage recursively searches for the first non-empty message in the entry hierarchy
+func findFirstMessage(entry *Entry) string {
+	if entry == nil || entry.Mp == nil {
+		return ""
+	}
+	
+	// Check current entry
+	if entry.Mp.MessageStr != "" {
+		return entry.Mp.MessageStr
+	}
+	
+	// Recursively check children
+	for _, child := range entry.Children {
+		if msg := findFirstMessage(child); msg != "" {
+			return msg
+		}
+	}
+	
+	return ""
+}
+
+// findFirstMimeType recursively searches for the first non-empty MIME type in the entry hierarchy
+func findFirstMimeType(entry *Entry) string {
+	if entry == nil || entry.Mp == nil {
+		return ""
+	}
+	
+	// Check current entry
+	mimeBytes := entry.Mp.Mimetype[:]
+	if idx := bytes.IndexByte(mimeBytes, 0); idx >= 0 {
+		mimeBytes = mimeBytes[:idx]
+	}
+	mimeStr := string(mimeBytes)
+	if mimeStr != "" {
+		return mimeStr
+	}
+	
+	// Recursively check children
+	for _, child := range entry.Children {
+		if mime := findFirstMimeType(child); mime != "" {
+			return mime
+		}
+	}
+	
+	return ""
+}
+
 // FormatForList formats the database for --list output
 func (db *Database) FormatForList() []string {
 	var output []string
@@ -45,13 +92,8 @@ func (db *Database) FormatForList() []string {
 				// Get message - if parent's message is empty, look for child's message
 				message := entry.Mp.MessageStr
 				if message == "" && len(entry.Children) > 0 {
-					// Find first child with non-empty message
-					for _, child := range entry.Children {
-						if child.Mp != nil && child.Mp.MessageStr != "" {
-							message = child.Mp.MessageStr
-							break
-						}
-					}
+					// Recursively find first descendant with non-empty message
+					message = findFirstMessage(entry)
 				}
 
 				// Convert MIME type byte array to string
@@ -64,19 +106,8 @@ func (db *Database) FormatForList() []string {
 
 				// If parent's MIME type is empty, look for child's MIME type
 				if mimeStr == "" && len(entry.Children) > 0 {
-					for _, child := range entry.Children {
-						if child.Mp != nil {
-							childMimeBytes := child.Mp.Mimetype[:]
-							if idx := bytes.IndexByte(childMimeBytes, 0); idx >= 0 {
-								childMimeBytes = childMimeBytes[:idx]
-							}
-							childMimeStr := string(childMimeBytes)
-							if childMimeStr != "" {
-								mimeStr = childMimeStr
-								break
-							}
-						}
-					}
+					// Recursively find first descendant with non-empty MIME type
+					mimeStr = findFirstMimeType(entry)
 				}
 
 				info := StrengthInfo{
@@ -105,13 +136,8 @@ func (db *Database) FormatForList() []string {
 				// Get message - if parent's message is empty, look for child's message
 				message := entry.Mp.MessageStr
 				if message == "" && len(entry.Children) > 0 {
-					// Find first child with non-empty message
-					for _, child := range entry.Children {
-						if child.Mp != nil && child.Mp.MessageStr != "" {
-							message = child.Mp.MessageStr
-							break
-						}
-					}
+					// Recursively find first descendant with non-empty message
+					message = findFirstMessage(entry)
 				}
 
 				// Convert MIME type byte array to string
@@ -124,19 +150,8 @@ func (db *Database) FormatForList() []string {
 
 				// If parent's MIME type is empty, look for child's MIME type
 				if mimeStr == "" && len(entry.Children) > 0 {
-					for _, child := range entry.Children {
-						if child.Mp != nil {
-							childMimeBytes := child.Mp.Mimetype[:]
-							if idx := bytes.IndexByte(childMimeBytes, 0); idx >= 0 {
-								childMimeBytes = childMimeBytes[:idx]
-							}
-							childMimeStr := string(childMimeBytes)
-							if childMimeStr != "" {
-								mimeStr = childMimeStr
-								break
-							}
-						}
-					}
+					// Recursively find first descendant with non-empty MIME type
+					mimeStr = findFirstMimeType(entry)
 				}
 
 				info := StrengthInfo{
