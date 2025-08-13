@@ -328,6 +328,16 @@ func ParseStringModifier(m *Magic, input *string) error {
 			}
 			m.Flags |= PSTRING_LENGTH_INCLUDES_ITSELF
 			
+		case '/':
+			// Allow multiple '/' for readability (matching C implementation)
+			// Skip this character if not followed by whitespace
+			if len(l) > 1 && !isSpace(l[1]) {
+				// Continue to next character
+			} else {
+				// If followed by whitespace or end of string, stop parsing
+				goto done
+			}
+			
 		default:
 			// Unknown modifier - could be an error
 			return fmt.Errorf("unknown string modifier '%c'", ch)
@@ -336,6 +346,7 @@ func ParseStringModifier(m *Magic, input *string) error {
 		l = l[1:]
 	}
 	
+done:
 	*input = l
 	return nil
 }
