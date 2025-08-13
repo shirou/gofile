@@ -169,7 +169,7 @@ func buildGofile(t *testing.T) string {
 	}
 	testDir := filepath.Dir(filename)
 	projectRoot := filepath.Join(testDir, "..", "..")
-	cmdPath := filepath.Join(projectRoot, "cmd", "file")
+	cmdPath := filepath.Join(projectRoot, "cmd", "gofile")
 
 	cmd := exec.Command("go", "build", "-o", gofilePath, cmdPath)
 	output, err := cmd.CombinedOutput()
@@ -200,11 +200,11 @@ func normalizeOutput(output []byte) []byte {
 	for i, line := range lines {
 		lines[i] = strings.TrimRight(line, " \t\r")
 	}
-	
+
 	// Join back and trim final newlines
 	normalized := strings.Join(lines, "\n")
 	normalized = strings.TrimRight(normalized, "\n")
-	
+
 	return []byte(normalized)
 }
 
@@ -214,7 +214,7 @@ func diffOutputs(actual, expected []byte) string {
 	expectedLines := strings.Split(string(expected), "\n")
 
 	var buf bytes.Buffer
-	
+
 	// Find the maximum line count
 	maxLines := len(actualLines)
 	if len(expectedLines) > maxLines {
@@ -223,7 +223,7 @@ func diffOutputs(actual, expected []byte) string {
 
 	for i := 0; i < maxLines; i++ {
 		var actualLine, expectedLine string
-		
+
 		if i < len(actualLines) {
 			actualLine = actualLines[i]
 		}
@@ -240,7 +240,7 @@ func diffOutputs(actual, expected []byte) string {
 	}
 
 	if len(actualLines) != len(expectedLines) {
-		fmt.Fprintf(&buf, "Line count: got %d, expected %d\n", 
+		fmt.Fprintf(&buf, "Line count: got %d, expected %d\n",
 			len(actualLines), len(expectedLines))
 	}
 

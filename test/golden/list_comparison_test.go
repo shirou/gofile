@@ -19,7 +19,7 @@ var (
 )
 
 func TestListCommandComparison(t *testing.T) {
-	// Skip test if file command is not available
+	// Skip test if system's file command is not available
 	if _, err := exec.LookPath("file"); err != nil {
 		t.Skip("System 'file' command not found, skipping comparison tests")
 	}
@@ -146,9 +146,9 @@ func TestListCommandComparison(t *testing.T) {
 
 // TestListCommandSpecificFiles tests a few important magic files in detail
 func TestListCommandSpecificFiles(t *testing.T) {
-	// Skip test if file command is not available
-	if _, err := exec.LookPath("file"); err != nil {
-		t.Skip("System 'file' command not found, skipping comparison tests")
+	// Skip test if gofile command is not available
+	if _, err := exec.LookPath("gofile"); err != nil {
+		t.Skip("System 'gofile' command not found, skipping comparison tests")
 	}
 
 	// Important magic files to test

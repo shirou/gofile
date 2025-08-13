@@ -59,7 +59,7 @@ func (m *Magic) apprenticeMagicStrength() int {
 	val := BASE
 
 	// Calculate Vallen if not already set (for string types)
-	if m.Vallen == 0 && (m.TypeStr == TypeString.ToString() || m.TypeStr == TypePstring.ToString() || 
+	if m.Vallen == 0 && (m.TypeStr == TypeString.ToString() || m.TypeStr == TypePstring.ToString() ||
 		m.TypeStr == TypeSearch.ToString() || strings.HasPrefix(m.TypeStr, "search/")) {
 		m.Vallen = uint8(m.calculateValueLength())
 	}
@@ -226,6 +226,11 @@ func (m *Magic) apprenticeMagicStrength() int {
 			reduction = 0
 		}
 		val = int(float64(val) * reduction)
+	}
+
+	// Ensure we only return 0 for FILE_DEFAULT (matches original file command)
+	if val <= 0 && MagicTypeFromString(strings.ToLower(m.TypeStr)) != TypeDefault {
+		val = 1
 	}
 
 	return val
