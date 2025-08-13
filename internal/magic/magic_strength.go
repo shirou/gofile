@@ -128,9 +128,13 @@ func (m *Magic) apprenticeMagicStrength() int {
 		}
 		val += int(v) * multiplier
 
-	case TypeGuid, TypeDer:
-		// These have a fixed moderate strength
+	case TypeGuid:
+		// GUID has a fixed moderate strength
 		val += 5 * MULT
+	
+	case TypeDer:
+		// DER type adds exactly MULT (matches original file command)
+		val += MULT
 
 	case TypeIndirect, TypeName, TypeUse:
 		// These have a fixed moderate strength

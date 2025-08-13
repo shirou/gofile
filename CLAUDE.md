@@ -96,7 +96,8 @@ This document explains the magic strength system for pattern priority:
    - File type detector
    - Strength calculator
 
-2. **Command-Line Tool** (`cmd/gofile/main.go`)
+2. **Command-Line Tool** (`cmd/gofile/`)
+   - CLI is located in `cmd/gofile` directory
    - Argument parser  
    - Option handling
    - Output formatting
@@ -120,8 +121,7 @@ This document explains the magic strength system for pattern priority:
 ```
 gofile/
 ├── cmd/
-│   └── gofile/
-│       └── main.go          # CLI entry point (builds "gofile" binary)
+│   └── gofile/              # CLI directory (builds "gofile" binary)
 ├── internal/
 │   └── magic/
 │       ├── parser.go         # Magic file parser

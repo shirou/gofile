@@ -3,6 +3,7 @@
 *.dll
 *.so
 *.dylib
+gofile
 
 # Test data and external repositories
 test/file/
