@@ -682,7 +682,8 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 // getStr converts a string containing C character escapes.
 // Stops at an unescaped space or tab.
 // This is a port of the getstr function from apprentice.c line 3021
-func getStr(s string, warn bool) (string, error) {
+// If interpretEscapes is false, escape sequences like \b, \t are kept as literals (for regex/search patterns)
+func getStr(s string, warn bool, interpretEscapes bool) (string, error) {
 	if s == "" {
 		return "", nil
 	}
@@ -733,19 +734,47 @@ func getStr(s string, warn bool) (string, error) {
 			// Escaped backslash
 			result = append(result, '\\')
 		case 'a':
-			result = append(result, '\a')
+			if interpretEscapes {
+				result = append(result, '\a')
+			} else {
+				result = append(result, '\\', 'a')
+			}
 		case 'b':
-			result = append(result, '\b')
+			if interpretEscapes {
+				result = append(result, '\b')
+			} else {
+				result = append(result, '\\', 'b')
+			}
 		case 'f':
-			result = append(result, '\f')
+			if interpretEscapes {
+				result = append(result, '\f')
+			} else {
+				result = append(result, '\\', 'f')
+			}
 		case 'n':
-			result = append(result, '\n')
+			if interpretEscapes {
+				result = append(result, '\n')
+			} else {
+				result = append(result, '\\', 'n')
+			}
 		case 'r':
-			result = append(result, '\r')
+			if interpretEscapes {
+				result = append(result, '\r')
+			} else {
+				result = append(result, '\\', 'r')
+			}
 		case 't':
-			result = append(result, '\t')
+			if interpretEscapes {
+				result = append(result, '\t')
+			} else {
+				result = append(result, '\\', 't')
+			}
 		case 'v':
-			result = append(result, '\v')
+			if interpretEscapes {
+				result = append(result, '\v')
+			} else {
+				result = append(result, '\\', 'v')
+			}
 		case '0', '1', '2', '3', '4', '5', '6', '7':
 			// Octal escape sequence (up to 3 digits)
 			val := s[i] - '0'
@@ -1414,8 +1443,10 @@ func getValue(m *Magic, p string) error {
 	switch m.Type {
 	case TypeBestring16, TypeLestring16, TypeString, TypePstring,
 		TypeRegex, TypeSearch, TypeName, TypeUse, TypeDer, TypeOctal:
-		// Parse string value using getStr
-		parsedStr, err := getStr(p, false)
+		// For regex and search types, don't interpret escape sequences
+		// The original file command keeps regex patterns as literal strings
+		interpretEscapes := !(m.Type == TypeRegex || m.Type == TypeSearch)
+		parsedStr, err := getStr(p, false, interpretEscapes)
 		if err != nil {
 			return fmt.Errorf("cannot get string from '%s': %w", p, err)
 		}

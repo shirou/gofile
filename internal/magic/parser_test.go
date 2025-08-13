@@ -570,19 +570,20 @@ func TestGetStr(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			got, err := getStr(tt.input, tt.warn)
+			// Test with interpretEscapes=true (default behavior for these tests)
+			got, err := getStr(tt.input, tt.warn, true)
 			if tt.wantErr {
 				if err == nil {
-					t.Errorf("getStr(%q, %v) expected error, but got none", tt.input, tt.warn)
+					t.Errorf("getStr(%q, %v, true) expected error, but got none", tt.input, tt.warn)
 				}
 				return
 			}
 			if err != nil {
-				t.Errorf("getStr(%q, %v) unexpected error: %v", tt.input, tt.warn, err)
+				t.Errorf("getStr(%q, %v, true) unexpected error: %v", tt.input, tt.warn, err)
 				return
 			}
 			if got != tt.expected {
-				t.Errorf("getStr(%q, %v) = %q, want %q", tt.input, tt.warn, got, tt.expected)
+				t.Errorf("getStr(%q, %v, true) = %q, want %q", tt.input, tt.warn, got, tt.expected)
 				// Print bytes for debugging
 				t.Logf("Got bytes: %v", []byte(got))
 				t.Logf("Want bytes: %v", []byte(tt.expected))
