@@ -100,11 +100,11 @@ func TestGetStandardIntegerType(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			gotType, gotRest := getStandardIntegerType(tt.input)
-			
+
 			if gotType != tt.wantType {
-				t.Errorf("Type mismatch: want=%s, got=%s", tt.wantType.ToString(), gotType.ToString())
+				t.Errorf("Type mismatch: want=%s, got=%s", tt.wantType.String(), gotType.String())
 			}
-			
+
 			if gotRest != tt.wantRest {
 				t.Errorf("Rest mismatch: want=%s, got=%s", tt.wantRest, gotRest)
 			}

@@ -100,15 +100,15 @@ func (p *Parser) addEntry(me *Entry) {
 // LoadOne loads magic data from a reader (port of load_1 from apprentice.c)
 func (p *Parser) LoadOne(r io.Reader, filename string) error {
 	reader := bufio.NewReader(r)
-	lineNumber := 0  // Start at 0 like C implementation
-	var me Entry // Current magic entry being processed (like C's me)
+	lineNumber := 0 // Start at 0 like C implementation
+	var me Entry    // Current magic entry being processed (like C's me)
 
 	for {
 		lineStr, err := reader.ReadString('\n')
 		if err != nil && err != io.EOF {
 			return fmt.Errorf("error reading magic file: %w", err)
 		}
-		
+
 		// Check if we're done
 		if len(lineStr) == 0 && err == io.EOF {
 			break
@@ -148,13 +148,13 @@ func (p *Parser) LoadOne(r io.Reader, filename string) error {
 			// Find the entry to apply the directive to
 			// It should be applied to the most recently added entry
 			var targetEntry *Entry = &me
-			
+
 			// If there are children, the directive applies to the last child at the deepest level
 			if me.Mp != nil && me.ContCount > 1 {
 				// Find the most recently added entry
 				targetEntry = p.findLastAddedEntry(&me)
 			}
-			
+
 			if targetEntry != nil && targetEntry.Mp != nil {
 				// parseExtra handles !:mime, !:apple, !:ext, !:strength
 				p.parseExtra(line, targetEntry)
@@ -187,7 +187,7 @@ func (p *Parser) LoadOne(r io.Reader, filename string) error {
 			// Now parse the same line again as a new top-level entry
 			goto again // C code uses goto again to reparse
 		}
-		
+
 		// Check if we're at EOF
 		if err == io.EOF {
 			break
@@ -445,66 +445,60 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 	l = strings.TrimLeft(l, " \t")
 
 	// Parse the type
-	typeStr := ""
+	magicType := TypeInvalid
 	if len(l) > 0 && l[0] == 'u' {
 		// Unsigned type prefix
 		l = l[1:]
-		magicType, rest, err := getType(l)
+		mt, rest, err := getType(l)
 		if err == nil {
-			typeStr = magicType.ToString()
+			magicType = mt
 			l = rest
 		} else {
 			// Try as SUS integer type
-			magicType, rest := getStandardIntegerType("u" + l)
-			typeStr = magicType.ToString()
+			mt, rest := getStandardIntegerType("u" + l)
+			magicType = mt
 			l = rest
 		}
 		m.Flag |= UNSIGNED
 	} else {
 		// Regular type
-		magicType, rest, err := getType(l)
+		mt, rest, err := getType(l)
 		if err == nil {
-			typeStr = magicType.ToString()
+			magicType = mt
 			l = rest
 		} else {
 			// Try SUS integer type
 			if len(l) > 0 && l[0] == 'd' {
-				magicType, rest := getStandardIntegerType(l)
-				typeStr = magicType.ToString()
+				mt, rest := getStandardIntegerType(l)
+				magicType = mt
 				l = rest
 			} else if len(l) > 0 && l[0] == 's' && (len(l) == 1 || !isAlpha(l[1])) {
-				typeStr = "string"
+				magicType = TypeString
 				l = l[1:]
 			}
 		}
 	}
 
-	if typeStr == "" {
+	if magicType == TypeInvalid {
 		// Try special types
-		typeStr, l = getSpecialType(l)
+		magicType, l = getSpecialType(l)
+		if magicType == TypeInvalid {
+			return nil, fmt.Errorf("type '%s' invalid", l)
+		}
 	}
 
-	if typeStr == "" {
-		return nil, fmt.Errorf("type '%s' invalid", l)
-	}
-
-	m.TypeStr = typeStr
-
-	// Convert TypeStr to Type enum
-	m.Type = StringToMagicType(typeStr)
-	if m.Type == TypeInvalid {
-		return nil, fmt.Errorf("invalid magic type '%s'", typeStr)
-	}
+	m.Type = magicType
+	m.TypeStr = magicType.String()
 
 	// Check FILE_NAME restrictions
-	if typeStr == "name" && contLevel != 0 {
+	if magicType == TypeName && contLevel != 0 {
 		return nil, fmt.Errorf("'name' entries can only be declared at top level")
 	}
 
 	// Handle mask operations
 	m.MaskOp = 0
 	if len(l) > 0 && l[0] == '~' {
-		if !isStringType(typeStr) {
+		if !isStringType(magicType) {
 			m.MaskOp |= FILE_OPINVERSE
 		}
 		l = l[1:]
@@ -512,19 +506,19 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 
 	m.Count = 0
 	m.Flags = 0
-	if typeStr == "pstring" {
+	if magicType == TypePstring {
 		m.Flags = PSTRING_1_LE
 	}
 
 	// Handle operators and modifiers
 	if len(l) > 0 {
 		if op := getOp(l[0]); op != 0xFF {
-			if isStringType(typeStr) {
+			if isStringType(magicType) {
 				if op != FILE_OPDIVIDE {
 					return nil, fmt.Errorf("invalid string/indirect op: '%c'", l[0])
 				}
 				// Parse string modifiers
-				if typeStr == "indirect" {
+				if magicType == TypeIndirect {
 					if err := parseIndirectModifier(m, &l); err != nil {
 						return nil, err
 					}
@@ -670,9 +664,6 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 
 	// Store original values for easier access
 	m.OffsetStr = fmt.Sprintf("%d", m.Offset)
-
-	// Calculate initial strength
-	m.Strength = m.apprenticeMagicStrength()
 
 	return m, nil
 }
@@ -927,18 +918,20 @@ func getType(s string) (MagicType, string, error) {
 }
 
 // getSpecialType extracts special type names
-func getSpecialType(s string) (string, string) {
-	types := []string{
-		"der", "name", "use", "octal",
+func getSpecialType(s string) (MagicType, string) {
+	l := len(s)
+	switch s {
+	case "der":
+		return TypeDer, s[l:]
+	case "name":
+		return TypeName, s[l:]
+	case "use":
+		return TypeUse, s[l:]
+	case "octal":
+		return TypeOctal, s[l:]
 	}
 
-	for _, typ := range types {
-		if strings.HasPrefix(s, typ) {
-			return typ, s[len(typ):]
-		}
-	}
-
-	return "", s
+	return TypeInvalid, s[l:]
 }
 
 // getStandardIntegerType parses SUS integer types (d, dC, dS, dL, dQ, u, uC, uS, uL, uQ)
@@ -1028,12 +1021,12 @@ func isAlpha(c byte) bool {
 }
 
 // isStringType checks if a type is a string type
-func isStringType(typ string) bool {
-	return typ == "string" || typ == "pstring" ||
-		typ == "bestring16" || typ == "lestring16" ||
-		typ == "search" || typ == "regex" ||
-		typ == "indirect" || typ == "name" ||
-		typ == "use" || typ == "der" || typ == "octal"
+func isStringType(typ MagicType) bool {
+	return typ == TypeString || typ == TypePstring ||
+		typ == TypeBestring16 || typ == TypeLestring16 ||
+		typ == TypeSearch || typ == TypeRegex ||
+		typ == TypeIndirect || typ == TypeName ||
+		typ == TypeUse || typ == TypeDer || typ == TypeOctal
 }
 
 // parseIndirectModifier parses indirect type modifiers
@@ -1112,7 +1105,12 @@ func (p *Parser) parseExtra(line string, entry *Entry) {
 				p.errors = append(p.errors, fmt.Errorf("line %d: strength parse error: %w", entry.Mp.Lineno, err))
 			}
 			// Recalculate strength after applying the directive
-			entry.Mp.Strength = entry.Mp.apprenticeMagicStrength()
+			s, err := entry.Mp.apprenticeMagicStrength()
+			if err != nil {
+				p.errors = append(p.errors, fmt.Errorf("line %d: strength calculation error: %w", entry.Mp.Lineno, err))
+			} else {
+				entry.Mp.Strength = s
+			}
 		}
 	}
 	// Unknown directives are silently ignored (as in C code)
@@ -1135,10 +1133,10 @@ func (p *Parser) findLastAddedEntry(entry *Entry) *Entry {
 	if entry == nil {
 		return nil
 	}
-	
+
 	// Start with the current entry
 	current := entry
-	
+
 	// Traverse down to find the deepest recently added child
 	for len(current.Children) > 0 {
 		// Get the last child (most recently added)
@@ -1149,7 +1147,7 @@ func (p *Parser) findLastAddedEntry(entry *Entry) *Entry {
 			break
 		}
 	}
-	
+
 	return current
 }
 
@@ -1163,7 +1161,7 @@ func (p *Parser) OrganizeSets() {
 			TextEntries:   make([]*Entry, 0),
 		})
 	}
-	
+
 	// Sort entries by strength in each set
 	if len(p.database.Sets) > 0 {
 		apprenticeSort(p.database.Sets[0].BinaryEntries)
@@ -1299,8 +1297,20 @@ func apprenticeSortCompare(a, b *Entry) int {
 	}
 
 	// Calculate strength using file_magic_strength equivalent
-	sa := fileMagicStrength(a.Mp, a.ContCount)
-	sb := fileMagicStrength(b.Mp, b.ContCount)
+	// For entries with no description, we need to consider continuations
+	var sa, sb int
+	var err error
+
+	sa, err = fileMagicStrength(a.Mp, a)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error calculating strength for entry: %v\n", err)
+		return 1 // Treat as lower strength if error occurs
+	}
+	sb, err = fileMagicStrength(b.Mp, b)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error calculating strength for entry: %v\n", err)
+		return -1 // Treat as higher strength if error occurs
+	}
 
 	if sa == sb {
 		// When strengths are equal, compare the magic structures
@@ -1409,31 +1419,6 @@ func compareMagicStructs(a, b *Magic) int {
 	}
 
 	return 0
-}
-
-// fileMagicStrength calculates the strength of a magic entry
-// This is a wrapper around the Magic struct's Strength field
-// but also considers continuation entries when needed
-func fileMagicStrength(m *Magic, _ uint32) int {
-	if m == nil {
-		return 0
-	}
-
-	// Get the base strength from the Magic struct
-	val := m.Strength
-
-	// If the description is empty, add a small bonus
-	// (matching the original C code logic)
-	if len(bytes.TrimRight(m.Desc[:], "\x00")) == 0 {
-		val++
-	}
-
-	// Ensure we only return 0 for FILE_DEFAULT type
-	if val <= 0 && m.TypeStr != "default" {
-		val = 1
-	}
-
-	return val
 }
 
 // getValue parses the test value string and stores it in the appropriate Value field
@@ -1546,7 +1531,7 @@ func getValue(m *Magic, p string) error {
 		}
 
 		// Check for overflow based on type size
-		ts := typeSize(m.Type)
+		ts := m.Type.Size()
 		if ts == 0 {
 			return fmt.Errorf("expected numeric type got type %d", m.Type)
 		}
@@ -1563,7 +1548,7 @@ func getValue(m *Magic, p string) error {
 }
 
 // checkOverflow checks if a value overflows for the given type size
-func checkOverflow(val uint64, typeSize uint8) error {
+func checkOverflow(val uint64, typeSize int) error {
 	var x uint64
 	var overflow bool
 
@@ -1616,31 +1601,4 @@ func parseGUID(s string) ([2]uint64, error) {
 	}
 
 	return [2]uint64{high, low}, nil
-}
-
-// typeSize returns the size in bytes for a given type
-func typeSize(t MagicType) uint8 {
-	switch t {
-	case TypeByte, TypeUbyte:
-		return 1
-	case TypeShort, TypeUshort, TypeBeshort, TypeLeshort, TypeBeshort16, TypeLeshort16:
-		return 2
-	case TypeLong, TypeUlong, TypeBelong, TypeLelong, TypeMelong,
-		TypeFloat, TypeBefloat, TypeLefloat,
-		TypeDate, TypeBedate, TypeLedate, TypeLdate,
-		TypeBeldate, TypeLeldate, TypeMedate, TypeMeldate,
-		TypeMsdosdate, TypeBemsdosdate, TypeLemsdosdate,
-		TypeMsdostime, TypeBemsdostime, TypeLemsdostime:
-		return 4
-	case TypeQuad, TypeUquad, TypeBequad, TypeLequad,
-		TypeDouble, TypeBedouble, TypeLedouble,
-		TypeQdate, TypeLeqdate, TypeBeqdate,
-		TypeQldate, TypeLeqldate, TypeBeqldate,
-		TypeQwdate, TypeLeqwdate, TypeBeqwdate:
-		return 8
-	case TypeGuid:
-		return 16
-	default:
-		return 0
-	}
 }

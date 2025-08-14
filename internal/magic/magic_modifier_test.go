@@ -14,7 +14,7 @@ func TestParseOpModifierFunc(t *testing.T) {
 		wantOp   uint8
 	}{
 		"AND with hex value": {
-			typeStr:  TypeLong.ToString(),
+			typeStr:  TypeLong.String(),
 			input:    "&0xff",
 			op:       FILE_OPAND,
 			wantMask: 0xff,
@@ -22,7 +22,7 @@ func TestParseOpModifierFunc(t *testing.T) {
 			wantOp:   FILE_OPAND,
 		},
 		"OR with decimal value": {
-			typeStr:  TypeShort.ToString(),
+			typeStr:  TypeShort.String(),
 			input:    "|256",
 			op:       FILE_OPOR,
 			wantMask: 256,
@@ -30,7 +30,7 @@ func TestParseOpModifierFunc(t *testing.T) {
 			wantOp:   FILE_OPOR,
 		},
 		"XOR with octal value": {
-			typeStr:  TypeByte.ToString(),
+			typeStr:  TypeByte.String(),
 			input:    "^0377",
 			op:       FILE_OPXOR,
 			wantMask: 0xffffffffffffffff, // 0377 (255) sign-extended from byte to -1
@@ -38,7 +38,7 @@ func TestParseOpModifierFunc(t *testing.T) {
 			wantOp:   FILE_OPXOR,
 		},
 		"ADD with decimal and size modifier": {
-			typeStr:  TypeLong.ToString(),
+			typeStr:  TypeLong.String(),
 			input:    "+10L",
 			op:       FILE_OPADD,
 			wantMask: 10,
@@ -46,7 +46,7 @@ func TestParseOpModifierFunc(t *testing.T) {
 			wantOp:   FILE_OPADD,
 		},
 		"MINUS with negative value": {
-			typeStr:  TypeLong.ToString(),
+			typeStr:  TypeLong.String(),
 			input:    "--5",
 			op:       FILE_OPMINUS,
 			wantMask: 0xfffffffffffffffb, // -5 as uint64
@@ -54,7 +54,7 @@ func TestParseOpModifierFunc(t *testing.T) {
 			wantOp:   FILE_OPMINUS,
 		},
 		"value with trailing text": {
-			typeStr:  TypeLong.ToString(),
+			typeStr:  TypeLong.String(),
 			input:    "&0xff test",
 			op:       FILE_OPAND,
 			wantMask: 0xff,
@@ -69,18 +69,18 @@ func TestParseOpModifierFunc(t *testing.T) {
 				TypeStr: tt.typeStr,
 				Flag:    0,
 			}
-			
+
 			input := tt.input
 			ParseOpModifier(m, &input, tt.op)
-			
+
 			if m.MaskOp != tt.wantOp {
 				t.Errorf("MaskOp = %d, want %d", m.MaskOp, tt.wantOp)
 			}
-			
+
 			if m.Mask != tt.wantMask {
 				t.Errorf("Mask = %d, want %d", m.Mask, tt.wantMask)
 			}
-			
+
 			if input != tt.wantRest {
 				t.Errorf("remaining input = %q, want %q", input, tt.wantRest)
 			}
@@ -96,31 +96,31 @@ func TestSignExtend(t *testing.T) {
 		want     uint64
 	}{
 		"byte sign extend": {
-			typeStr:  TypeByte.ToString(),
+			typeStr:  TypeByte.String(),
 			value:    0xff,
 			unsigned: false,
 			want:     0xffffffffffffffff, // -1 as uint64
 		},
 		"byte unsigned": {
-			typeStr:  TypeByte.ToString(),
+			typeStr:  TypeByte.String(),
 			value:    0xff,
 			unsigned: true,
 			want:     0xff,
 		},
 		"short sign extend": {
-			typeStr:  TypeShort.ToString(),
+			typeStr:  TypeShort.String(),
 			value:    0xffff,
 			unsigned: false,
 			want:     0xffffffffffffffff, // -1 as uint64
 		},
 		"long sign extend": {
-			typeStr:  TypeLong.ToString(),
+			typeStr:  TypeLong.String(),
 			value:    0xffffffff,
 			unsigned: false,
 			want:     0xffffffffffffffff, // -1 as uint64
 		},
 		"quad no sign extend": {
-			typeStr:  TypeQuad.ToString(),
+			typeStr:  TypeQuad.String(),
 			value:    0xffffffffffffffff,
 			unsigned: false,
 			want:     0xffffffffffffffff,
@@ -135,7 +135,7 @@ func TestSignExtend(t *testing.T) {
 			if tt.unsigned {
 				m.Flag |= UNSIGNED
 			}
-			
+
 			got := signExtend(m, tt.value)
 			if got != tt.want {
 				t.Errorf("signExtend() = %#x, want %#x", got, tt.want)

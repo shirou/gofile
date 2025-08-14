@@ -1,10 +1,10 @@
 package magic
 
 // TestType represents the test type for pattern matching
-type TestType int
+type TestType uint8
 
 const (
-	NOTEST TestType = iota  // Neither binary nor text (for name entries, etc.)
+	NOTEST TestType = iota // Neither binary nor text (for name entries, etc.)
 	BINTEST
 	TEXTTEST
 )
@@ -15,7 +15,7 @@ type MagicType int8
 const (
 	// Invalid type
 	TypeInvalid MagicType = iota
-	
+
 	// Numeric types
 	TypeByte
 	TypeShort
@@ -76,7 +76,7 @@ const (
 	TypeLemsdostime
 	TypeBemsdostime
 	TypeOctal
-	
+
 	// Additional types not in FILE_* constants
 	TypeUbyte
 	TypeUshort
@@ -86,8 +86,8 @@ const (
 	TypeUquad
 )
 
-// ToString returns the string representation of a MagicType
-func (t MagicType) ToString() string {
+// String returns the string representation of a MagicType
+func (t MagicType) String() string {
 	switch t {
 	case TypeInvalid:
 		return "invalid"
@@ -363,6 +363,36 @@ func MagicTypeFromString(s string) MagicType {
 		return TypeUquad
 	default:
 		return TypeInvalid
+	}
+}
+
+// Size return of a MagicType size in bytes
+func (t MagicType) Size() int {
+	switch t {
+	case TypeByte:
+		return 1
+	case TypeShort, TypeLeshort, TypeBeshort,
+		TypeMsdosdate, TypeBemsdosdate, TypeLemsdosdate,
+		TypeMsdostime, TypeBemsdostime, TypeLemsdostime:
+		return 2
+	case TypeLong, TypeLelong, TypeBelong, TypeMelong:
+		return 4
+	case TypeDate, TypeLedate, TypeBedate, TypeMedate,
+		TypeLdate, TypeLeldate, TypeBeldate, TypeMeldate,
+		TypeFloat, TypeBefloat, TypeLefloat,
+		TypeBeid3, TypeLeid3:
+		return 4
+	case TypeQuad, TypeBequad, TypeLequad,
+		TypeQdate, TypeLeqdate, TypeBeqdate,
+		TypeQldate, TypeLeqldate, TypeBeqldate,
+		TypeQwdate, TypeLeqwdate, TypeBeqwdate,
+		TypeDouble, TypeBedouble, TypeLedouble,
+		TypeOffset, TypeBevarint, TypeLevarint:
+		return 8
+	case TypeGuid:
+		return 16
+	default:
+		return 0 // Invalid or unsupported type
 	}
 }
 

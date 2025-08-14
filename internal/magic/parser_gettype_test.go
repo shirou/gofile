@@ -46,17 +46,17 @@ func TestGetType(t *testing.T) {
 			errContains: "unknown type",
 		},
 		"partial match": {
-			input:       "shortcut",
-			wantType:    TypeShort,
-			wantRest:    "cut",
-			wantErr:     false,
+			input:    "shortcut",
+			wantType: TypeShort,
+			wantRest: "cut",
+			wantErr:  false,
 		},
 	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			gotType, gotRest, err := getType(tt.input)
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("Expected error but got none")
@@ -68,11 +68,11 @@ func TestGetType(t *testing.T) {
 					t.Errorf("Unexpected error: %v", err)
 				}
 			}
-			
+
 			if gotType != tt.wantType {
-				t.Errorf("Type mismatch: want=%s, got=%s", tt.wantType.ToString(), gotType.ToString())
+				t.Errorf("Type mismatch: want=%s, got=%s", tt.wantType.String(), gotType.String())
 			}
-			
+
 			if gotRest != tt.wantRest {
 				t.Errorf("Rest mismatch: want=%s, got=%s", tt.wantRest, gotRest)
 			}

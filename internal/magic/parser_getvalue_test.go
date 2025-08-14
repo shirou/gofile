@@ -373,9 +373,9 @@ func TestSignExtension(t *testing.T) {
 
 func TestParseGUID(t *testing.T) {
 	tests := map[string]struct {
-		input    string
-		want     [2]uint64
-		wantErr  bool
+		input   string
+		want    [2]uint64
+		wantErr bool
 	}{
 		"valid guid with dashes": {
 			input: "12345678-9ABC-DEF0-1234-56789ABCDEF0",
@@ -438,69 +438,29 @@ func TestParseGUID(t *testing.T) {
 	}
 }
 
-func TestTypeSize(t *testing.T) {
-	tests := map[string]struct {
-		fileType MagicType
-		want     uint8
-	}{
-		"byte":      {TypeByte, 1},
-		"short":     {TypeShort, 2},
-		"beshort":   {TypeBeshort, 2},
-		"leshort":   {TypeLeshort, 2},
-		"long":      {TypeLong, 4},
-		"belong":    {TypeBelong, 4},
-		"lelong":    {TypeLelong, 4},
-		"melong":    {TypeMelong, 4},
-		"float":     {TypeFloat, 4},
-		"befloat":   {TypeBefloat, 4},
-		"lefloat":   {TypeLefloat, 4},
-		"date":      {TypeDate, 4},
-		"bedate":    {TypeBedate, 4},
-		"ledate":    {TypeLedate, 4},
-		"quad":      {TypeQuad, 8},
-		"bequad":    {TypeBequad, 8},
-		"lequad":    {TypeLequad, 8},
-		"double":    {TypeDouble, 8},
-		"bedouble":  {TypeBedouble, 8},
-		"ledouble":  {TypeLedouble, 8},
-		"guid":      {TypeGuid, 16},
-		"invalid":   {TypeInvalid, 0},
-		"string":    {TypeString, 0},
-	}
-
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			got := typeSize(tt.fileType)
-			if got != tt.want {
-				t.Errorf("typeSize(%d) = %d, want %d", tt.fileType, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestCheckOverflow(t *testing.T) {
 	tests := map[string]struct {
 		val      uint64
-		typeSize uint8
+		typeSize int
 		wantErr  bool
 	}{
 		// 1-byte types
-		"byte no overflow":         {0xFF, 1, false},
-		"byte overflow positive":   {0x100, 1, true},
+		"byte no overflow":          {0xFF, 1, false},
+		"byte overflow positive":    {0x100, 1, true},
 		"byte negative no overflow": {0xFFFFFFFFFFFFFF80, 1, false}, // -128
-		
+
 		// 2-byte types
-		"short no overflow":         {0xFFFF, 2, false},
-		"short overflow positive":   {0x10000, 2, true},
+		"short no overflow":          {0xFFFF, 2, false},
+		"short overflow positive":    {0x10000, 2, true},
 		"short negative no overflow": {0xFFFFFFFFFFFF8000, 2, false}, // -32768
-		
+
 		// 4-byte types
-		"long no overflow":         {0xFFFFFFFF, 4, false},
-		"long overflow positive":   {0x100000000, 4, true},
+		"long no overflow":          {0xFFFFFFFF, 4, false},
+		"long overflow positive":    {0x100000000, 4, true},
 		"long negative no overflow": {0xFFFFFFFF80000000, 4, false}, // -2147483648
-		
+
 		// 8-byte types
-		"quad no overflow":        {0xFFFFFFFFFFFFFFFF, 8, false},
+		"quad no overflow":          {0xFFFFFFFFFFFFFFFF, 8, false},
 		"quad negative no overflow": {0x8000000000000000, 8, false},
 	}
 
@@ -508,7 +468,7 @@ func TestCheckOverflow(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			err := checkOverflow(tt.val, tt.typeSize)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("checkOverflow(0x%x, %d) error = %v, wantErr = %v", 
+				t.Errorf("checkOverflow(0x%x, %d) error = %v, wantErr = %v",
 					tt.val, tt.typeSize, err, tt.wantErr)
 			}
 		})

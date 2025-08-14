@@ -110,8 +110,10 @@ func (db *Database) FormatForList() []string {
 					mimeStr = findFirstMimeType(entry)
 				}
 
+				// Calculate strength dynamically (matches original file command)
+				strength, _ := fileMagicStrength(entry.Mp, entry)
 				info := StrengthInfo{
-					Value:      entry.Mp.Strength,
+					Value:      strength,
 					LineNumber: int(entry.Mp.Lineno),
 					Message:    message,
 					MimeType:   mimeStr,
@@ -154,8 +156,10 @@ func (db *Database) FormatForList() []string {
 					mimeStr = findFirstMimeType(entry)
 				}
 
+				// Calculate strength dynamically (matches original file command)
+				strength, _ := fileMagicStrength(entry.Mp, entry)
 				info := StrengthInfo{
-					Value:      entry.Mp.Strength,
+					Value:      strength,
 					LineNumber: int(entry.Mp.Lineno),
 					Message:    message,
 					MimeType:   mimeStr,

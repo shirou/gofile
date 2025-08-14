@@ -51,18 +51,54 @@ func (m *Magic) nonmagic(str string) int {
 	return rv
 }
 
+// fileMagicStrength calculates the strength of a magic entry
+func fileMagicStrength(m *Magic, entry *Entry) (int, error) {
+	if m == nil {
+		return 0, fmt.Errorf("nil magic entry")
+	}
+
+	// Get the base strength from the Magic struct
+	val, err := m.apprenticeMagicStrength()
+	if err != nil {
+		return 0, fmt.Errorf("error calculating magic strength: %w", err)
+	}
+
+	// Apply manual strength modifier if present
+	switch m.FactorOp {
+	case FILE_FACTOR_OP_NONE:
+		break
+	case FILE_FACTOR_OP_PLUS:
+		val += int(m.Factor)
+	case FILE_FACTOR_OP_MINUS:
+		val -= int(m.Factor)
+	case FILE_FACTOR_OP_TIMES:
+		val *= int(m.Factor)
+	case FILE_FACTOR_OP_DIV:
+		if m.Factor == 0 {
+			return 0, fmt.Errorf("division by zero in magic strength calculation")
+		}
+		val /= int(m.Factor)
+	}
+
+	// Ensure we only return 0 for FILE_DEFAULT
+	if val <= 0 {
+		val = 1
+	}
+
+	// Magic entries with no description get a bonus
+	if m.Desc[0] == 0 {
+		val += 1
+	}
+
+	return val, nil
+}
+
 // apprenticeMagicStrength calculates the strength value for a magic pattern
 // This is a port of apprentice_magic_strength_1 from apprentice.c
-func (m *Magic) apprenticeMagicStrength() int {
+func (m *Magic) apprenticeMagicStrength() (int, error) {
 	const MULT = 10
-	const BASE = 20 // baseline strength (same as 2 * MULT)
+	const BASE = 2 * MULT // baseline strength
 	val := BASE
-
-	// Calculate Vallen if not already set (for string types)
-	if m.Vallen == 0 && (m.TypeStr == TypeString.ToString() || m.TypeStr == TypePstring.ToString() ||
-		m.TypeStr == TypeSearch.ToString() || strings.HasPrefix(m.TypeStr, "search/")) {
-		m.Vallen = uint8(m.calculateValueLength())
-	}
 
 	// Handle types with parameters (e.g., search/256)
 	baseType := strings.ToLower(m.TypeStr)
@@ -71,40 +107,49 @@ func (m *Magic) apprenticeMagicStrength() int {
 	}
 
 	// Calculate strength based on type
-	switch MagicTypeFromString(baseType) {
+	magicType := MagicTypeFromString(baseType)
+	switch magicType {
 	case TypeDefault:
 		// Default type has no strength regardless of factor_op
-		return 0
+		return 0, nil
 
-	case TypeByte, TypeUbyte:
-		val += 1 * MULT
-
-	case TypeShort, TypeUshort, TypeBeshort, TypeLeshort, TypeBeshort16, TypeLeshort16,
+	case TypeByte, TypeShort, TypeLeshort, TypeBeshort,
 		TypeMsdosdate, TypeBemsdosdate, TypeLemsdosdate,
-		TypeMsdostime, TypeBemsdostime, TypeLemsdostime:
-		val += 2 * MULT
-
-	case TypeLong, TypeUlong, TypeBelong, TypeLelong, TypeMelong,
+		TypeMsdostime, TypeBemsdostime, TypeLemsdostime,
+		TypeLong, TypeLelong, TypeBelong, TypeMelong,
+		TypeDate, TypeLedate, TypeBedate, TypeMedate,
+		TypeLdate, TypeLeldate, TypeBeldate, TypeMeldate,
 		TypeFloat, TypeBefloat, TypeLefloat,
-		TypeDate, TypeBedate, TypeLedate, TypeLdate, TypeBeldate, TypeLeldate,
-		TypeMedate, TypeMeldate:
-		val += 4 * MULT
-
-	case TypeQuad, TypeUquad, TypeBequad, TypeLequad,
-		TypeDouble, TypeBedouble, TypeLedouble,
+		TypeBeid3, TypeLeid3,
+		TypeQuad, TypeBequad, TypeLequad,
 		TypeQdate, TypeLeqdate, TypeBeqdate,
 		TypeQldate, TypeLeqldate, TypeBeqldate,
-		TypeQwdate, TypeLeqwdate, TypeBeqwdate:
-		val += 8 * MULT
-
+		TypeQwdate, TypeLeqwdate, TypeBeqwdate,
+		TypeDouble, TypeBedouble, TypeLedouble,
+		TypeOffset, TypeBevarint, TypeLevarint,
+		TypeGuid:
+		ts := magicType.Size()
+		if ts == 0 {
+			return 0, fmt.Errorf("Invalid type size for type %s", magicType)
+		}
+		val += ts * MULT
 	case TypePstring, TypeString, TypeOctal:
 		// Use vallen (actual value length) * MULT
-		val += int(m.Vallen) * MULT
-
+		// If vallen is 0, use the TestStr length as fallback
+		vallen := m.Vallen
+		if vallen == 0 && m.TestStr != "" {
+			vallen = uint8(len(m.TestStr))
+			if vallen > MAXstring {
+				vallen = MAXstring
+			}
+		}
+		val += int(vallen) * MULT
 	case TypeBestring16, TypeLestring16:
 		// String16 types use half the value length
+		if m.Vallen == 0 {
+			return 0, fmt.Errorf("Zero vallen for type %s", magicType)
+		}
 		val += int(m.Vallen) * MULT / 2
-
 	case TypeSearch:
 		if m.Vallen == 0 {
 			break
@@ -115,7 +160,6 @@ func (m *Magic) apprenticeMagicStrength() int {
 			multiplier = 1
 		}
 		val += int(m.Vallen) * multiplier
-
 	case TypeRegex:
 		// Count non-magic characters in regex
 		v := m.nonmagic(m.TestStr)
@@ -127,30 +171,14 @@ func (m *Magic) apprenticeMagicStrength() int {
 			multiplier = 1
 		}
 		val += int(v) * multiplier
-
-	case TypeGuid:
-		// GUID has a fixed moderate strength
-		val += 5 * MULT
-	
+	case TypeIndirect, TypeName, TypeUse, TypeClear:
+		break
 	case TypeDer:
 		// DER type adds exactly MULT (matches original file command)
 		val += MULT
-
-	case TypeIndirect, TypeName, TypeUse:
-		// These have a fixed moderate strength
-		val += 3 * MULT
-
-	case TypeOffset:
-		// Offset type has minimal strength
-		val += 1 * MULT
-
-	case TypeClear:
-		// Clear has no strength
-		return 0
-
 	default:
 		// Unknown types get base strength only
-		// Keep the baseline val = 2 * MULT
+		return 0, fmt.Errorf("unknown magic type %s", m.TypeStr)
 	}
 
 	// Convert OperatorStr to Reln if Reln is not set
@@ -193,58 +221,7 @@ func (m *Magic) apprenticeMagicStrength() int {
 		// Keep current value for unknown operators
 	}
 
-	// Ensure non-negative before applying factor operations
-	if val < 0 {
-		val = 0
-	}
-
-	// Apply manual strength modifier if present
-	if m.FactorOp != FILE_FACTOR_OP_NONE || m.Factor != 0 {
-		switch m.FactorOp {
-		case FILE_FACTOR_OP_PLUS:
-			val += int(m.Factor)
-		case FILE_FACTOR_OP_MINUS:
-			val -= int(m.Factor)
-			if val < 0 {
-				val = 0
-			}
-		case FILE_FACTOR_OP_TIMES:
-			val *= int(m.Factor)
-		case FILE_FACTOR_OP_DIV:
-			if m.Factor != 0 {
-				val /= int(m.Factor)
-			}
-		case FILE_FACTOR_OP_NONE:
-			// Absolute value - set strength directly (when Factor is non-zero)
-			if m.Factor != 0 {
-				val = int(m.Factor)
-			}
-		}
-	}
-
-	// Apply continuation level penalty if specified
-	if m.ContLevel > 0 {
-		// Each level reduces strength by 20%
-		reduction := 1.0 - (0.2 * float64(m.ContLevel))
-		if reduction < 0 {
-			reduction = 0
-		}
-		val = int(float64(val) * reduction)
-	}
-
-	// Ensure we only return 0 for FILE_DEFAULT (matches original file command)
-	if val <= 0 && MagicTypeFromString(strings.ToLower(m.TypeStr)) != TypeDefault {
-		val = 1
-	}
-
-	// Magic entries with no description get a bonus because they depend
-	// on subsequent magic entries to print something.
-	// This matches the original file command behavior.
-	if m.MessageStr == "" {
-		val++
-	}
-
-	return val
+	return val, nil
 }
 
 // ParseStrength parses a strength modifier line from a magic file
