@@ -3,43 +3,26 @@ package magic
 import (
 	"bytes"
 	"fmt"
-	"sort"
 )
-
-// SortEntriesByStrength sorts entries by strength in descending order
-func SortEntriesByStrength(entries []*Entry) {
-	sort.Slice(entries, func(i, j int) bool {
-		// Skip entries without Magic struct
-		if entries[i].Mp == nil || entries[j].Mp == nil {
-			return false
-		}
-		// Sort by strength (descending)
-		if entries[i].Mp.Strength != entries[j].Mp.Strength {
-			return entries[i].Mp.Strength > entries[j].Mp.Strength
-		}
-		// If strength is equal, sort by line number (ascending)
-		return entries[i].Mp.Lineno < entries[j].Mp.Lineno
-	})
-}
 
 // findFirstMessage recursively searches for the first non-empty message in the entry hierarchy
 func findFirstMessage(entry *Entry) string {
 	if entry == nil || entry.Mp == nil {
 		return ""
 	}
-	
+
 	// Check current entry
 	if entry.Mp.MessageStr != "" {
 		return entry.Mp.MessageStr
 	}
-	
+
 	// Recursively check children
 	for _, child := range entry.Children {
 		if msg := findFirstMessage(child); msg != "" {
 			return msg
 		}
 	}
-	
+
 	return ""
 }
 
@@ -48,7 +31,7 @@ func findFirstMimeType(entry *Entry) string {
 	if entry == nil || entry.Mp == nil {
 		return ""
 	}
-	
+
 	// Check current entry
 	mimeBytes := entry.Mp.Mimetype[:]
 	if idx := bytes.IndexByte(mimeBytes, 0); idx >= 0 {
@@ -58,14 +41,14 @@ func findFirstMimeType(entry *Entry) string {
 	if mimeStr != "" {
 		return mimeStr
 	}
-	
+
 	// Recursively check children
 	for _, child := range entry.Children {
 		if mime := findFirstMimeType(child); mime != "" {
 			return mime
 		}
 	}
-	
+
 	return ""
 }
 
@@ -82,7 +65,7 @@ func (db *Database) FormatForList() []string {
 			// Sort by strength
 			sorted := make([]*Entry, len(set.BinaryEntries))
 			copy(sorted, set.BinaryEntries)
-			SortEntriesByStrength(sorted)
+			apprenticeSort(sorted)
 
 			for _, entry := range sorted {
 				if entry.Mp == nil {
@@ -128,7 +111,7 @@ func (db *Database) FormatForList() []string {
 			// Sort by strength
 			sorted := make([]*Entry, len(set.TextEntries))
 			copy(sorted, set.TextEntries)
-			SortEntriesByStrength(sorted)
+			apprenticeSort(sorted)
 
 			for _, entry := range sorted {
 				if entry.Mp == nil {

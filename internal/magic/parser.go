@@ -579,14 +579,7 @@ func (p *Parser) parseMagicLine(line string, lineNumber int) (*Magic, error) {
 		}
 
 		// For string types, use getStr to handle escaped spaces properly
-		isString := false
-		switch m.Type {
-		case TypeString, TypePstring, TypeBestring16, TypeLestring16,
-			TypeRegex, TypeSearch, TypeName, TypeUse, TypeDer, TypeOctal:
-			isString = true
-		}
-
-		if isString {
+		if isStringType(m.Type) {
 			// For string types, we need to find the end of the value
 			// by properly handling escaped spaces
 			valueEnd := 0
@@ -1313,29 +1306,15 @@ func apprenticeSortCompare(a, b *Entry) int {
 	}
 
 	if sa == sb {
-		// When strengths are equal, compare the magic structures
-		// Create copies to zero out line numbers for comparison
-		mpa := *a.Mp
-		mpb := *b.Mp
-		mpa.Lineno = 0
-		mpb.Lineno = 0
-
-		// Compare the structures byte-by-byte
-		x := compareMagicStructs(&mpa, &mpb)
-		if x == 0 {
-			// Don't warn for DER type
-			if mpa.TypeStr != "der" {
-				// Duplicate magic entry detected
-				fmt.Fprintf(os.Stderr, "Warning: Duplicate magic entry `%s'\n",
-					string(bytes.TrimRight(a.Mp.Desc[:], "\x00")))
-			}
-			return 0
-		}
-		// Reverse the comparison result to maintain consistency with C code
-		if x > 0 {
+		// When strengths are equal, maintain original order (sort by line number)
+		// This does not matches the original file command behavior (TODO)
+		if a.Mp.Lineno < b.Mp.Lineno {
 			return -1
 		}
-		return 1
+		if a.Mp.Lineno > b.Mp.Lineno {
+			return 1
+		}
+		return 0
 	}
 
 	// Higher strength comes first (descending order)

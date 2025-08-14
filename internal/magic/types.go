@@ -184,6 +184,13 @@ func (m *Magic) GetTestType() TestType {
 		return BINTEST
 
 	case TypeRegex, TypeSearch:
+		// Check for explicit overrides first (matching original file command)
+		if m.Flags&STRING_TEXTTEST != 0 {
+			return TEXTTEST
+		}
+		if m.Flags&STRING_BINTEST != 0 {
+			return BINTEST
+		}
 		// For regex and search types, use UTF-8 validity check
 		// (matching original file command's file_looks_utf8 logic)
 		if m.TestStr != "" {
