@@ -68,11 +68,11 @@ package main
 
 import (
     "fmt"
-    "github.com/shirou/gofile/internal/magic"
+    "github.com/shirou/gofile"
 )
 
 func main() {
-    fi, err := magic.New(magic.Options{})
+    fi, err := gofile.New(gofile.Options{})
     if err != nil {
         panic(err)
     }

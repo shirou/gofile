@@ -28,4 +28,5 @@ test:
 
 ## Build the CLI
 build:
-	go build -o bin/file ./cmd/file
+	mkdir -p bin
+	go build -o bin/gofile ./cmd/gofile
