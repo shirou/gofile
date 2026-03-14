@@ -46,10 +46,16 @@ func (m *Matcher) Match(buf []byte) string {
 	}
 
 	// Try text magic: detect encoding, decode if needed, run TEXTTEST rules
+	// This is the ascmagic phase — text test rules run here, not in soft magic.
 	if enc := detectEncoding(buf); enc != "" && enc != "data" {
 		// For UTF-16/UTF-32, decode and try text magic on decoded content
 		if decoded := decodeUTF16(buf); decoded != nil {
 			if textResult := m.matchTextMagic(decoded); textResult != "" {
+				return appendTextEncoding(textResult, enc)
+			}
+		} else {
+			// For ASCII/UTF-8, try text magic on original buffer
+			if textResult := m.matchTextMagic(buf); textResult != "" {
 				return appendTextEncoding(textResult, enc)
 			}
 		}
@@ -134,6 +140,12 @@ func (m *Matcher) matchSoftMagic(buf []byte) string {
 	for _, group := range m.set.Groups {
 		top := group.Entries[0]
 		if top.Type == TypeName {
+			continue
+		}
+		// Skip TEXTTEST rules in soft magic — they run in ascmagic (text detection phase).
+		// In C's file, softmagic only runs BINTEST rules. TEXTTEST rules (explicit /t flag
+		// or auto-classified text search/regex patterns) are deferred to ascmagic.
+		if top.StrFlags&StrFlagTextTest != 0 || isAutoTextTest(top) {
 			continue
 		}
 
@@ -288,9 +300,15 @@ func (m *Matcher) processContinuations(out *strings.Builder, buf []byte, entries
 			continue
 		}
 
-		// Handle 'clear' type — resets sibling match tracking
+		// Handle 'clear' type — resets sibling match tracking, then continues
+		// with normal match processing (description output, etc.)
+		// C's file: FILE_CLEAR sets got_match=0, then falls through to output.
 		if cont.Type == TypeClear {
 			levels[cl] = levelState{matched: true, matchedOffset: levels[cl].matchedOffset, siblingMatch: false}
+			if cont.Desc != "" {
+				appendDesc(out, m.formatDesc(cont.Desc, Value{}))
+			}
+			score++
 			continue
 		}
 
