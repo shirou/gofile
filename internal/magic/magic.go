@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strings"
 )
 
 //go:embed all:magicdata
@@ -178,10 +179,9 @@ func (fi *FileIdentifier) List() []ListEntry {
 		}
 		desc := top.Desc
 		mime := top.MimeType
-		// Propagate desc/mime from first continuation that has one,
-		// skipping TypeUse entries (their Desc is the rule name, not a display description).
+		// Propagate desc/mime from first continuation that has one.
 		for _, e := range g.Entries[1:] {
-			if desc == "" && e.Desc != "" && e.Type != TypeUse {
+			if desc == "" && e.Desc != "" {
 				desc = e.Desc
 			}
 			if mime == "" && e.MimeType != "" {
@@ -190,6 +190,12 @@ func (fi *FileIdentifier) List() []ListEntry {
 			if desc != "" && mime != "" {
 				break
 			}
+		}
+		// Strip leading \b escape (backspace) from propagated descriptions.
+		// In C file(1), \b is stored as byte 0x08 which acts as backspace
+		// when printed, effectively removing the preceding space.
+		if strings.HasPrefix(desc, `\b`) {
+			desc = desc[2:]
 		}
 		entry := ListEntry{
 			Strength: g.Strength,

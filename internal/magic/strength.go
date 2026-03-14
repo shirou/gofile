@@ -98,6 +98,52 @@ func compareMagicEntry(a, b *MagicEntry) int {
 	return 0
 }
 
+// vallen returns the string value length capped at 255 (uint8),
+// matching the C struct magic.vallen field.
+func vallen(entry *MagicEntry) int {
+	l := len(entry.Value.Str)
+	if l > 255 {
+		l = 255
+	}
+	return l
+}
+
+// nonmagic counts the number of non-magic (literal) characters in a regex
+// pattern, matching the C file(1) nonmagic() function from apprentice.c.
+func nonmagic(pattern []byte) int {
+	rv := 0
+	for i := 0; i < len(pattern); i++ {
+		switch pattern[i] {
+		case '\\': // Escaped anything counts 1
+			if i+1 < len(pattern) {
+				i++
+			}
+			rv++
+		case '?', '*', '.', '+', '^', '$': // Magic characters count 0
+			continue
+		case '[': // Bracketed expressions count 1 at the ']'
+			for i+1 < len(pattern) && pattern[i+1] != ']' {
+				i++
+			}
+			// Don't skip past the ']' — the outer loop's i++ will land on it,
+			// matching C's p-- after the while loop.
+		case '{': // Braced expressions count 0
+			for i < len(pattern) && pattern[i] != '}' {
+				i++
+			}
+			if i >= len(pattern) {
+				i--
+			}
+		default: // Anything else counts 1
+			rv++
+		}
+	}
+	if rv == 0 {
+		return 1
+	}
+	return rv
+}
+
 func strengthOpToByte(op byte) byte {
 	switch op {
 	case '+':
@@ -141,11 +187,11 @@ func calcStrength(entry *MagicEntry) int {
 	case TypeGUID:
 		val += 16 * strengthMULT
 	case TypeString, TypePString, TypeOctal:
-		val += len(entry.Value.Str) * strengthMULT
+		val += vallen(entry) * strengthMULT
 	case TypeBEString16, TypeLEString16:
-		val += len(entry.Value.Str) * strengthMULT / 2
+		val += vallen(entry) * strengthMULT / 2
 	case TypeSearch:
-		l := len(entry.Value.Str)
+		l := vallen(entry)
 		if l > 0 {
 			m := strengthMULT / l
 			if m < 1 {
@@ -154,7 +200,7 @@ func calcStrength(entry *MagicEntry) int {
 			val += l * m
 		}
 	case TypeRegex:
-		l := len(entry.Value.Str)
+		l := nonmagic(entry.Value.Str)
 		if l > 0 {
 			m := strengthMULT / l
 			if m < 1 {
@@ -184,11 +230,6 @@ func calcStrength(entry *MagicEntry) int {
 		val -= strengthMULT
 	}
 
-	// Empty description bonus
-	if entry.Desc == "" {
-		val++
-	}
-
 	// Apply strength modifier (!:strength +N, -N, *N, /N)
 	if entry.StrengthOp != 0 {
 		switch entry.StrengthOp {
@@ -205,18 +246,14 @@ func calcStrength(entry *MagicEntry) int {
 		}
 	}
 
-	// Clamp: non-default entries never go below 1
+	// Clamp: ensure we only return 0 for FILE_DEFAULT (matching C)
 	if val <= 0 {
-		switch entry.Type {
-		case TypeDefault, TypeClear:
-			val = 0
-		default:
-			if entry.Relation == 'x' || entry.Relation == '!' {
-				val = 0
-			} else {
-				val = 1
-			}
-		}
+		val = 1
+	}
+
+	// Empty description bonus (applied after factor and clamp, matching C)
+	if entry.Desc == "" {
+		val++
 	}
 
 	return val

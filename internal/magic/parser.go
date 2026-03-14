@@ -227,6 +227,10 @@ func parseMetadata(entry *MagicEntry, line string) {
 	}
 	directive := parts[0]
 	value := strings.TrimSpace(parts[1])
+	// Strip inline comments (e.g., "text/PGP # encoding: data")
+	if idx := strings.Index(value, " #"); idx >= 0 {
+		value = strings.TrimSpace(value[:idx])
+	}
 	switch directive {
 	case "!:mime":
 		entry.MimeType = value
@@ -693,10 +697,7 @@ func parseTestValue(entry *MagicEntry, test string) {
 	if entry.Type == TypeName || entry.Type == TypeUse {
 		entry.Value.Str = []byte(test)
 		entry.Value.IsString = true
-		if entry.Type == TypeUse {
-			entry.Desc = test
-		}
-		// For TypeName, Desc is set from the description field (fields[3:]) if present
+		// Desc is set from the description field (fields[3:]) in the caller, not from test.
 		return
 	}
 
@@ -706,7 +707,7 @@ func parseTestValue(entry *MagicEntry, test string) {
 		switch test[0] {
 		case '=', '!', '<', '>', '&', '^':
 			rel = test[0]
-			test = test[1:]
+			test = strings.TrimLeft(test[1:], " ")
 		}
 	}
 	entry.Relation = rel
@@ -903,8 +904,8 @@ func parseStringValue(s string) []byte {
 				buf = append(buf, '\t')
 			case '\\':
 				buf = append(buf, '\\')
-			case '0', '1', '2', '3':
-				// Octal escape: \0nn, \1nn, \2nn, \3nn (C-style, max value \377 = 0xFF)
+			case '0', '1', '2', '3', '4', '5', '6', '7':
+				// Octal escape: up to 3 octal digits (matching C file(1))
 				val := s[i] - '0'
 				i++
 				for j := 0; j < 2 && i < len(s) && s[i] >= '0' && s[i] <= '7'; j++ {
