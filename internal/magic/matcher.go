@@ -3,6 +3,7 @@ package magic
 import (
 	"encoding/binary"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -11,8 +12,9 @@ import (
 
 // Matcher performs pattern matching against a file buffer using magic rules.
 type Matcher struct {
-	set   *MagicSet
-	depth int // recursion depth for indirect type
+	set      *MagicSet
+	depth    int         // recursion depth for indirect type
+	fileMode os.FileMode // file permission bits for ${x?...} expansion
 }
 
 const maxIndirectDepth = 16
@@ -23,6 +25,12 @@ func NewMatcher(set *MagicSet) *Matcher {
 		set.buildGroups()
 	}
 	return &Matcher{set: set}
+}
+
+// MatchWithMode identifies the type of the given buffer, using file mode for ${x?...} expansion.
+func (m *Matcher) MatchWithMode(buf []byte, mode os.FileMode) string {
+	m.fileMode = mode
+	return m.Match(buf)
 }
 
 // Match identifies the type of the given buffer.
@@ -187,7 +195,7 @@ func (m *Matcher) matchGroupScored(buf []byte, group *MagicGroup, baseOffset int
 	}
 
 	var out strings.Builder
-	out.WriteString(formatDesc(top.Desc, val))
+	out.WriteString(m.formatDesc(top.Desc, val))
 
 	contScore := m.processContinuations(&out, buf, group.Entries[1:], baseOffset, matchedOffset)
 
@@ -293,7 +301,7 @@ func (m *Matcher) processContinuations(out *strings.Builder, buf []byte, entries
 				levels[cl] = levelState{matched: false, matchedOffset: levels[cl].matchedOffset, siblingMatch: levels[cl].siblingMatch}
 				continue // skip default if a sibling already matched
 			}
-			appendDesc(out, formatDesc(cont.Desc, Value{}))
+			appendDesc(out, m.formatDesc(cont.Desc, Value{}))
 			levels[cl] = levelState{matched: true, matchedOffset: levels[cl-1].matchedOffset, siblingMatch: true}
 			continue
 		}
@@ -315,7 +323,7 @@ func (m *Matcher) processContinuations(out *strings.Builder, buf []byte, entries
 				subResult := m.matchSoftMagic(buf[indirectOffset:])
 				m.depth--
 				if subResult != "" {
-					appendDesc(out, formatDesc(cont.Desc, Value{}))
+					appendDesc(out, m.formatDesc(cont.Desc, Value{}))
 					appendDesc(out, subResult)
 					levels[cl] = levelState{matched: true, matchedOffset: indirectOffset, siblingMatch: true}
 				}
@@ -332,7 +340,7 @@ func (m *Matcher) processContinuations(out *strings.Builder, buf []byte, entries
 
 		contMatched, contVal, contOffset := m.tryMatch(buf, cont, effectiveBase)
 		if contMatched {
-			desc := formatDesc(cont.Desc, contVal)
+			desc := m.formatDesc(cont.Desc, contVal)
 			appendDesc(out, desc)
 			levels[cl] = levelState{matched: true, matchedOffset: contOffset, siblingMatch: true}
 			score++
@@ -361,7 +369,7 @@ func (m *Matcher) matchNamedGroup(buf []byte, group *MagicGroup, baseOffset int)
 	// Include the name entry's description if present (set when magic has explicit desc)
 	top := group.Entries[0]
 	if top.Desc != "" {
-		out.WriteString(formatDesc(top.Desc, Value{}))
+		out.WriteString(m.formatDesc(top.Desc, Value{}))
 	}
 	// Named groups start from their continuations (skip the 'name' entry itself)
 	_ = m.processContinuations(&out, buf, group.Entries[1:], baseOffset, baseOffset)
@@ -672,10 +680,70 @@ func isDateType(t FileType) bool {
 	return false
 }
 
+// varexpand expands variable expressions like ${x?true_value:false_value} in descriptions.
+// Currently supports only the 'x' variable, which checks if the file has execute permission.
+// This matches C file's varexpand() in softmagic.c.
+func varexpand(desc string, mode os.FileMode) string {
+	var out strings.Builder
+	s := desc
+	for {
+		idx := strings.Index(s, "${")
+		if idx < 0 {
+			out.WriteString(s)
+			break
+		}
+		out.WriteString(s[:idx])
+		rest := s[idx+2:]
+		// expect: variable char, '?', true_value, ':', false_value, '}'
+		if len(rest) < 4 || rest[1] != '?' {
+			// malformed, copy literally
+			out.WriteString("${")
+			s = rest
+			continue
+		}
+		varChar := rest[0]
+		colonIdx := strings.IndexByte(rest[2:], ':')
+		if colonIdx < 0 {
+			out.WriteString("${")
+			s = rest
+			continue
+		}
+		colonIdx += 2
+		braceIdx := strings.IndexByte(rest[colonIdx+1:], '}')
+		if braceIdx < 0 {
+			out.WriteString("${")
+			s = rest
+			continue
+		}
+		braceIdx += colonIdx + 1
+		trueVal := rest[2:colonIdx]
+		falseVal := rest[colonIdx+1 : braceIdx]
+		switch varChar {
+		case 'x':
+			if mode&0111 != 0 {
+				out.WriteString(trueVal)
+			} else {
+				out.WriteString(falseVal)
+			}
+		default:
+			// unknown variable, copy literally
+			out.WriteString("${")
+			s = rest
+			continue
+		}
+		s = rest[braceIdx+1:]
+	}
+	return out.String()
+}
+
 // formatDesc formats the description using the matched value.
-func formatDesc(desc string, val Value) string {
+func (m *Matcher) formatDesc(desc string, val Value) string {
 	if desc == "" {
 		return ""
+	}
+	// Expand variable expressions like ${x?true:false}
+	if strings.Contains(desc, "${") {
+		desc = varexpand(desc, m.fileMode)
 	}
 	if !strings.Contains(desc, "%") {
 		return desc

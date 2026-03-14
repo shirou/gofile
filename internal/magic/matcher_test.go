@@ -1,6 +1,7 @@
 package magic
 
 import (
+	"os"
 	"testing"
 )
 
@@ -106,5 +107,42 @@ func TestMatch_ContinuationWithFormat(t *testing.T) {
 	expected := "Zip archive data, at least v20 to extract"
 	if result != expected {
 		t.Errorf("got %q, want %q", result, expected)
+	}
+}
+
+func TestVarexpand(t *testing.T) {
+	tests := []struct {
+		desc       string
+		mode       os.FileMode
+		wantResult string
+	}{
+		{
+			desc:       "${x?pie executable:shared object},",
+			mode:       0755, // executable
+			wantResult: "pie executable,",
+		},
+		{
+			desc:       "${x?pie executable:shared object},",
+			mode:       0644, // not executable
+			wantResult: "shared object,",
+		},
+		{
+			desc:       "no variables here",
+			mode:       0755,
+			wantResult: "no variables here",
+		},
+		{
+			desc:       "prefix ${x?exec:lib} suffix",
+			mode:       0100, // executable
+			wantResult: "prefix exec suffix",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			got := varexpand(tt.desc, tt.mode)
+			if got != tt.wantResult {
+				t.Errorf("varexpand(%q, 0%o) = %q, want %q", tt.desc, tt.mode, got, tt.wantResult)
+			}
+		})
 	}
 }

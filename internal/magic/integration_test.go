@@ -70,6 +70,10 @@ func TestIntegration(t *testing.T) {
 			flags := strings.TrimSpace(string(flagsBytes))
 
 			m := NewMatcher(testSet)
+			// 'x' flag: simulate executable file mode for ${x?...} expansion
+			if strings.Contains(flags, "x") {
+				m.fileMode = 0755
+			}
 			var result string
 			if strings.Contains(flags, "k") {
 				result = m.MatchAll(buf)

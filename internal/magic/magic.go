@@ -106,7 +106,28 @@ func (fi *FileIdentifier) IdentifyFile(path string) (string, error) {
 	n, _ := f.Read(buf)
 	buf = buf[:n]
 
-	return fi.IdentifyBuffer(buf), nil
+	// Run ELF analysis for additional info (dynamically linked, interpreter, etc.)
+	elfResult := tryELF(buf, f, info.Size())
+
+	fileMode := info.Mode()
+	if elfResult != nil && elfResult.isPIE {
+		// DF_1_PIE sets execute bits for ${x?pie executable:shared object} expansion
+		fileMode |= 0111
+	} else if elfResult != nil && !elfResult.isPIE {
+		// No DF_1_PIE: clear execute bits like C does (ms->mode &= ~0111)
+		fileMode &^= 0111
+	}
+
+	result := fi.matcher.MatchWithMode(buf, fileMode)
+
+	// Append ELF details after magic match
+	if elfResult != nil {
+		if extra := formatELFInfo(elfResult); extra != "" {
+			result += ", " + extra
+		}
+	}
+
+	return result, nil
 }
 
 // IdentifyBuffer identifies content from a byte buffer.
