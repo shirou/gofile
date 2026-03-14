@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -77,6 +79,73 @@ func NewFromDir(dir string, opts Options) (*FileIdentifier, error) {
 		matcher: NewMatcher(set),
 		options: opts,
 	}, nil
+}
+
+// NewFromPath creates a FileIdentifier from a path that can be either
+// a .mgc compiled file or a directory of text magic files.
+func NewFromPath(path string, opts Options) (*FileIdentifier, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if info.IsDir() {
+		return NewFromDir(path, opts)
+	}
+	if strings.HasSuffix(path, ".mgc") || !info.IsDir() {
+		// Try as .mgc first
+		fi, err := NewFromMgcFile(path, opts)
+		if err == nil {
+			return fi, nil
+		}
+	}
+	return nil, fmt.Errorf("unsupported magic source: %s", path)
+}
+
+// systemMgcPaths returns the search paths for system .mgc files.
+func systemMgcPaths() []string {
+	switch runtime.GOOS {
+	case "darwin":
+		return []string{
+			"/usr/share/file/magic.mgc",
+			"/opt/homebrew/share/misc/magic.mgc",
+		}
+	default: // linux, freebsd, etc.
+		return []string{
+			"/usr/lib/file/magic.mgc",
+			"/usr/share/misc/magic.mgc",
+			"/usr/share/file/magic.mgc",
+			"/etc/magic.mgc",
+		}
+	}
+}
+
+// FindSystemMgc returns the path to the first available system .mgc file,
+// or empty string if none found. It searches localDir first (if non-empty),
+// then system paths.
+func FindSystemMgc(localDir string) string {
+	if localDir != "" {
+		mgcPath := filepath.Join(localDir, "magic.mgc")
+		if _, err := os.Stat(mgcPath); err == nil {
+			return mgcPath
+		}
+	}
+	for _, p := range systemMgcPaths() {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
+}
+
+// NewFromSystemMgc creates a FileIdentifier using the system .mgc file.
+// It searches localDir first (if non-empty), then system paths.
+// Falls back to the embedded database if no .mgc file is found.
+func NewFromSystemMgc(localDir string, opts Options) (*FileIdentifier, error) {
+	mgcPath := FindSystemMgc(localDir)
+	if mgcPath != "" {
+		return NewFromMgcFile(mgcPath, opts)
+	}
+	return New(opts)
 }
 
 // IdentifyFile identifies a file by path.

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime/pprof"
 
 	"github.com/shirou/gofile/internal/magic"
 )
@@ -14,7 +15,26 @@ func main() {
 	listMode := flag.Bool("l", false, "list magic entries with strength")
 	magicFile := flag.String("m", "", "magic file or directory path")
 	separator := flag.String("F", ":", "separator")
+	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
 	flag.Parse()
+
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "could not create CPU profile: %v\n", err)
+			os.Exit(1)
+		}
+		defer func() {
+			if err := f.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "could not close CPU profile: %v\n", err)
+			}
+		}()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			fmt.Fprintf(os.Stderr, "could not start CPU profile: %v\n", err)
+			os.Exit(1)
+		}
+		defer pprof.StopCPUProfile()
+	}
 
 	opts := magic.Options{
 		MimeType: *mimeType,
@@ -25,9 +45,9 @@ func main() {
 	var err error
 
 	if *magicFile != "" {
-		fi, err = magic.NewFromDir(*magicFile, opts)
+		fi, err = magic.NewFromPath(*magicFile, opts)
 	} else {
-		fi, err = magic.New(opts)
+		fi, err = magic.NewFromSystemMgc("files", opts)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "file: %v\n", err)

@@ -109,12 +109,13 @@ func (m *Matcher) matchSoftMagicAll(buf []byte) []string {
 	}
 	var matches []matchResult
 
+	isBinary := isBinaryData(buf)
 	for _, group := range m.set.Groups {
 		top := group.Entries[0]
 		if top.Type == TypeName {
 			continue
 		}
-		result, score := m.matchGroupScored(buf, &group, 0)
+		result, score := m.matchGroupScoredWithBinary(buf, &group, 0, isBinary)
 		if result != "" {
 			matches = append(matches, matchResult{result, score, group.Strength})
 		}
@@ -137,6 +138,10 @@ func (m *Matcher) matchSoftMagic(buf []byte) string {
 	bestIsTextTest := false
 	var bestTop *MagicEntry
 
+	// Cache isBinaryData result: detectEncoding scans the entire buffer,
+	// so calling it per-group is O(groups × bufsize). Cache it once.
+	isBinary := isBinaryData(buf)
+
 	for _, group := range m.set.Groups {
 		top := group.Entries[0]
 		if top.Type == TypeName {
@@ -149,7 +154,7 @@ func (m *Matcher) matchSoftMagic(buf []byte) string {
 			continue
 		}
 
-		result, score := m.matchGroupScored(buf, &group, 0)
+		result, score := m.matchGroupScoredWithBinary(buf, &group, 0, isBinary)
 		if result != "" && score > bestScore {
 			bestResult = result
 			bestScore = score
@@ -184,6 +189,12 @@ func (m *Matcher) matchSoftMagic(buf []byte) string {
 // matchGroupScored tries to match a group and returns (result, score).
 // Score reflects match quality: higher = more specific continuations matched.
 func (m *Matcher) matchGroupScored(buf []byte, group *MagicGroup, baseOffset int) (string, int) {
+	return m.matchGroupScoredWithBinary(buf, group, baseOffset, isBinaryData(buf))
+}
+
+// matchGroupScoredWithBinary is like matchGroupScored but accepts a pre-computed
+// isBinary flag to avoid repeatedly scanning the buffer.
+func (m *Matcher) matchGroupScoredWithBinary(buf []byte, group *MagicGroup, baseOffset int, isBinary bool) (string, int) {
 	top := group.Entries[0]
 
 	// Check text/binary test flags: /t means only match text files, /b only binary
@@ -191,12 +202,12 @@ func (m *Matcher) matchGroupScored(buf []byte, group *MagicGroup, baseOffset int
 	hasTT := top.StrFlags&StrFlagTextTest != 0
 	hasBT := top.StrFlags&StrFlagBinaryTest != 0
 	if hasTT && !hasBT {
-		if isBinaryData(buf) {
+		if isBinary {
 			return "", 0
 		}
 	}
 	if hasBT && !hasTT {
-		if !isBinaryData(buf) {
+		if !isBinary {
 			return "", 0
 		}
 	}
