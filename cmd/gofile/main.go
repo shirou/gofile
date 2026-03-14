@@ -36,16 +36,34 @@ func main() {
 
 	if *listMode {
 		entries := fi.List()
+		var binEntries, textEntries []magic.ListEntry
 		for _, e := range entries {
-			fmt.Printf("%4d %-40s", e.Strength, e.Desc)
-			if e.MimeType != "" {
-				fmt.Printf(" [%s]", e.MimeType)
+			if e.IsText {
+				textEntries = append(textEntries, e)
+			} else {
+				binEntries = append(binEntries, e)
 			}
-			if e.Ext != "" {
-				fmt.Printf(" {%s}", e.Ext)
-			}
-			fmt.Println()
 		}
+		fmt.Println("Set 0:")
+		fmt.Println("Binary patterns:")
+		for _, e := range binEntries {
+			mime := ""
+			if e.MimeType != "" {
+				mime = e.MimeType
+			}
+			fmt.Printf("Strength = %3d@%d: %s [%s]\n", e.Strength, e.LineNo, e.Desc, mime)
+		}
+		fmt.Println("Text patterns:")
+		for _, e := range textEntries {
+			mime := ""
+			if e.MimeType != "" {
+				mime = e.MimeType
+			}
+			fmt.Printf("Strength = %3d@%d: %s [%s]\n", e.Strength, e.LineNo, e.Desc, mime)
+		}
+		fmt.Println("Set 1:")
+		fmt.Println("Binary patterns:")
+		fmt.Println("Text patterns:")
 		return
 	}
 

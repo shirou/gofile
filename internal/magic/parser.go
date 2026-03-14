@@ -166,13 +166,14 @@ func (set *MagicSet) buildGroups() {
 	}
 
 	// Sort groups by strength (highest first).
-	// For equal strength, reverse original order to match C's qsort behavior
-	// (C returns 0 for equal elements; most qsort implementations reverse them).
+	// For equal strength, compare top-level entries field-by-field to match
+	// the C file(1) apprentice_sort() which uses memcmp on struct magic.
 	sort.SliceStable(set.Groups, func(i, j int) bool {
-		if set.Groups[i].Strength != set.Groups[j].Strength {
-			return set.Groups[i].Strength > set.Groups[j].Strength
+		si, sj := set.Groups[i].Strength, set.Groups[j].Strength
+		if si != sj {
+			return si > sj
 		}
-		return i > j // reverse order for equal strength (matches C behavior)
+		return compareMagicEntry(set.Groups[i].Entries[0], set.Groups[j].Entries[0]) > 0
 	})
 
 	// Rebuild named rules index after sort

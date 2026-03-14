@@ -160,12 +160,15 @@ func identifyFS(info os.FileInfo) string {
 // ListEntry represents a magic entry for the -l flag.
 type ListEntry struct {
 	Strength int
+	LineNo   int
 	Desc     string
 	MimeType string
-	Ext      string
+	IsText   bool
 }
 
 // List returns all top-level magic entries with their strengths.
+// Matches the C file(1) apprentice_list() behavior: propagates desc and
+// mimetype from continuations when the top-level entry has empty values.
 func (fi *FileIdentifier) List() []ListEntry {
 	var result []ListEntry
 	for _, g := range fi.set.Groups {
@@ -173,11 +176,27 @@ func (fi *FileIdentifier) List() []ListEntry {
 		if top.Type == TypeName {
 			continue
 		}
+		desc := top.Desc
+		mime := top.MimeType
+		// Propagate desc/mime from first continuation that has one,
+		// skipping TypeUse entries (their Desc is the rule name, not a display description).
+		for _, e := range g.Entries[1:] {
+			if desc == "" && e.Desc != "" && e.Type != TypeUse {
+				desc = e.Desc
+			}
+			if mime == "" && e.MimeType != "" {
+				mime = e.MimeType
+			}
+			if desc != "" && mime != "" {
+				break
+			}
+		}
 		entry := ListEntry{
 			Strength: g.Strength,
-			Desc:     top.Desc,
-			MimeType: top.MimeType,
-			Ext:      top.Ext,
+			LineNo:   top.LineNo,
+			Desc:     desc,
+			MimeType: mime,
+			IsText:   top.StrFlags&StrFlagTextTest != 0 || isAutoTextTest(top),
 		}
 		result = append(result, entry)
 	}
