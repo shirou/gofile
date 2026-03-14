@@ -96,6 +96,11 @@ gofile/
 └── repos/file/         Original file(1) source (not included in module)
 ```
 
+## Known Differences from C file(1)
+
+- **ELF detailed analysis**: gofile extracts link type, interpreter, BuildID, GNU version, and stripped status from ELF headers (porting C's `readelf.c`). Core dump analysis, SunOS capabilities, and PaX/Memtag notes are not yet implemented.
+- **Text test rules (c-lang etc.)**: In C's file 5.47, auto-classified text test rules (e.g., `search/8192 define` + `regex ^#define`) do not match in the ascmagic text test phase because the continuation buffer is empty, causing continuation-level regex to silently fail. gofile does not reproduce this limitation — continuations execute normally against the full buffer. As a result, gofile may identify some text files more specifically than C's file (e.g., `config.h` → "C source, ASCII text" vs "ASCII text"). This is a known divergence from the reference implementation.
+
 ## Acknowledgments
 
 This project would not be possible without the original [file(1)](https://github.com/file/file) command:

@@ -979,7 +979,6 @@ func decodeUTF16(buf []byte) []byte {
 }
 
 // matchTextMagic runs TEXTTEST magic rules against decoded text content.
-// This is used for UTF-16/UTF-32 content after decoding to UTF-8.
 func (m *Matcher) matchTextMagic(decoded []byte) string {
 	bestResult := ""
 	bestScore := 0
