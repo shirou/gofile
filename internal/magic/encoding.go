@@ -99,7 +99,8 @@ func detectLineEndings(data []byte) string {
 	lineLen := 0
 
 	for i := 0; i < len(data); i++ {
-		if data[i] == '\r' {
+		switch data[i] {
+		case '\r':
 			if i+1 < len(data) && data[i+1] == '\n' {
 				hasCRLF = true
 				i++ // skip the LF
@@ -107,10 +108,10 @@ func detectLineEndings(data []byte) string {
 				hasCR = true
 			}
 			lineLen = 0
-		} else if data[i] == '\n' {
+		case '\n':
 			hasLF = true
 			lineLen = 0
-		} else {
+		default:
 			lineLen++
 			if lineLen > 300 {
 				hasLongLines = true

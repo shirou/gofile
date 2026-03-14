@@ -36,13 +36,13 @@ func (er *elfReader) readAt(offset, length int64) []byte {
 // ELF constants
 const (
 	// ELF identification indices
-	eiMAG0    = 0
-	eiMAG1    = 1
-	eiMAG2    = 2
-	eiMAG3    = 3
-	eiCLASS   = 4
-	eiDATA    = 5
-	eiNIDENT  = 16
+	eiMAG0   = 0
+	eiMAG1   = 1
+	eiMAG2   = 2
+	eiMAG3   = 3
+	eiCLASS  = 4
+	eiDATA   = 5
+	eiNIDENT = 16
 
 	// ELF magic bytes
 	elfMAG0 = 0x7f
@@ -72,9 +72,9 @@ const (
 	shtNOTE   = 7
 
 	// Dynamic entry tags
-	dtNULL    = 0
-	dtNEEDED  = 1
-	dtFLAGS1  = 0x6ffffffb
+	dtNULL   = 0
+	dtNEEDED = 1
+	dtFLAGS1 = 0x6ffffffb
 
 	// DF_1 flags
 	df1PIE = 0x08000000
@@ -114,15 +114,15 @@ const (
 
 // elfInfo holds the extracted ELF information.
 type elfInfo struct {
-	linkType    string   // "dynamically linked", "statically linked", "static-pie linked"
-	interp      string
-	notes       []string // collected in order (OS note, BuildID, Go BuildID, etc.)
-	hasOSNote   bool
-	hasBuildID  bool
+	linkType     string // "dynamically linked", "statically linked", "static-pie linked"
+	interp       string
+	notes        []string // collected in order (OS note, BuildID, Go BuildID, etc.)
+	hasOSNote    bool
+	hasBuildID   bool
 	hasGoBuildID bool
-	stripped    bool
-	hasDebug    bool
-	isPIE       bool // for varexpand ${x?...}
+	stripped     bool
+	hasDebug     bool
+	isPIE        bool // for varexpand ${x?...}
 }
 
 // tryELF checks if buf is an ELF file and extracts detailed information.

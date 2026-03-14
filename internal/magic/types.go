@@ -4,62 +4,62 @@ package magic
 type FileType uint8
 
 const (
-	TypeInvalid FileType = iota
-	TypeByte             // 1
-	TypeShort            // 2
-	TypeDefault          // 3
-	TypeLong             // 4
-	TypeString           // 5
-	TypeDate             // 6
-	TypeBEShort          // 7
-	TypeBELong           // 8
-	TypeBEDate           // 9
-	TypeLEShort          // 10
-	TypeLELong           // 11
-	TypeLEDate           // 12
-	TypePString          // 13
-	TypeLDate            // 14
-	TypeBELDate          // 15
-	TypeLELDate          // 16
-	TypeRegex            // 17
-	TypeBEString16       // 18
-	TypeLEString16       // 19
-	TypeSearch           // 20
-	TypeMEDate           // 21
-	TypeMELDate          // 22
-	TypeMELong           // 23
-	TypeQuad             // 24
-	TypeLEQuad           // 25
-	TypeBEQuad           // 26
-	TypeQDate            // 27
-	TypeLEQDate          // 28
-	TypeBEQDate          // 29
-	TypeQLDate           // 30
-	TypeLEQLDate         // 31
-	TypeBEQLDate         // 32
-	TypeFloat            // 33
-	TypeBEFloat          // 34
-	TypeLEFloat          // 35
-	TypeDouble           // 36
-	TypeBEDouble         // 37
-	TypeLEDouble         // 38
-	TypeBEID3            // 39
-	TypeLEID3            // 40
-	TypeIndirect         // 41
-	TypeQWDate           // 42
-	TypeLEQWDate         // 43
-	TypeBEQWDate         // 44
-	TypeName             // 45
-	TypeUse              // 46
-	TypeClear            // 47
-	TypeDER              // 48
-	TypeGUID             // 49
-	TypeOffset           // 50
-	TypeOctal            // 51
-	TypeLEMSDOSDate      // 52
-	TypeLEMSDOSTime      // 53
-	TypeBEMSDOSDate      // 54
-	TypeBEMSDOSTime      // 55
+	TypeInvalid     FileType = iota
+	TypeByte                 // 1
+	TypeShort                // 2
+	TypeDefault              // 3
+	TypeLong                 // 4
+	TypeString               // 5
+	TypeDate                 // 6
+	TypeBEShort              // 7
+	TypeBELong               // 8
+	TypeBEDate               // 9
+	TypeLEShort              // 10
+	TypeLELong               // 11
+	TypeLEDate               // 12
+	TypePString              // 13
+	TypeLDate                // 14
+	TypeBELDate              // 15
+	TypeLELDate              // 16
+	TypeRegex                // 17
+	TypeBEString16           // 18
+	TypeLEString16           // 19
+	TypeSearch               // 20
+	TypeMEDate               // 21
+	TypeMELDate              // 22
+	TypeMELong               // 23
+	TypeQuad                 // 24
+	TypeLEQuad               // 25
+	TypeBEQuad               // 26
+	TypeQDate                // 27
+	TypeLEQDate              // 28
+	TypeBEQDate              // 29
+	TypeQLDate               // 30
+	TypeLEQLDate             // 31
+	TypeBEQLDate             // 32
+	TypeFloat                // 33
+	TypeBEFloat              // 34
+	TypeLEFloat              // 35
+	TypeDouble               // 36
+	TypeBEDouble             // 37
+	TypeLEDouble             // 38
+	TypeBEID3                // 39
+	TypeLEID3                // 40
+	TypeIndirect             // 41
+	TypeQWDate               // 42
+	TypeLEQWDate             // 43
+	TypeBEQWDate             // 44
+	TypeName                 // 45
+	TypeUse                  // 46
+	TypeClear                // 47
+	TypeDER                  // 48
+	TypeGUID                 // 49
+	TypeOffset               // 50
+	TypeOctal                // 51
+	TypeLEMSDOSDate          // 52
+	TypeLEMSDOSTime          // 53
+	TypeBEMSDOSDate          // 54
+	TypeBEMSDOSTime          // 55
 )
 
 // Value holds the parsed test value.
@@ -102,9 +102,9 @@ type MagicEntry struct {
 	// For string types: matching flags
 	StrFlags uint32
 	// Numeric mask
-	NumMask  uint64
-	MaskOp   byte // '&', '|', '^', '+', '-', '*', '/', '%'
-	HasMask  bool
+	NumMask uint64
+	MaskOp  byte // '&', '|', '^', '+', '-', '*', '/', '%'
+	HasMask bool
 
 	// Indirect offset
 	Flag     uint16

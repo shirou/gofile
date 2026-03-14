@@ -101,7 +101,7 @@ func (fi *FileIdentifier) IdentifyFile(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	buf := make([]byte, maxBytes)
 	n, _ := f.Read(buf)
@@ -194,9 +194,7 @@ func (fi *FileIdentifier) List() []ListEntry {
 		// Strip leading \b escape (backspace) from propagated descriptions.
 		// In C file(1), \b is stored as byte 0x08 which acts as backspace
 		// when printed, effectively removing the preceding space.
-		if strings.HasPrefix(desc, `\b`) {
-			desc = desc[2:]
-		}
+		desc = strings.TrimPrefix(desc, `\b`)
 		entry := ListEntry{
 			Strength: g.Strength,
 			LineNo:   top.LineNo,

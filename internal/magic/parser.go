@@ -27,45 +27,45 @@ var typeNames = map[string]FileType{
 	"qldate":  TypeQLDate,
 	"qwdate":  TypeQWDate,
 
-	"beshort":  TypeBEShort,
-	"belong":   TypeBELong,
-	"bequad":   TypeBEQuad,
-	"befloat":  TypeBEFloat,
-	"bedouble": TypeBEDouble,
-	"bedate":   TypeBEDate,
-	"beldate":  TypeBELDate,
-	"beqdate":  TypeBEQDate,
-	"beqldate": TypeBEQLDate,
-	"beqwdate": TypeBEQWDate,
-	"beid3":    TypeBEID3,
+	"beshort":    TypeBEShort,
+	"belong":     TypeBELong,
+	"bequad":     TypeBEQuad,
+	"befloat":    TypeBEFloat,
+	"bedouble":   TypeBEDouble,
+	"bedate":     TypeBEDate,
+	"beldate":    TypeBELDate,
+	"beqdate":    TypeBEQDate,
+	"beqldate":   TypeBEQLDate,
+	"beqwdate":   TypeBEQWDate,
+	"beid3":      TypeBEID3,
 	"bestring16": TypeBEString16,
 
-	"leshort":  TypeLEShort,
-	"lelong":   TypeLELong,
-	"lequad":   TypeLEQuad,
-	"lefloat":  TypeLEFloat,
-	"ledouble": TypeLEDouble,
-	"ledate":   TypeLEDate,
-	"leldate":  TypeLELDate,
-	"leqdate":  TypeLEQDate,
-	"leqldate": TypeLEQLDate,
-	"leqwdate": TypeLEQWDate,
-	"leid3":    TypeLEID3,
+	"leshort":    TypeLEShort,
+	"lelong":     TypeLELong,
+	"lequad":     TypeLEQuad,
+	"lefloat":    TypeLEFloat,
+	"ledouble":   TypeLEDouble,
+	"ledate":     TypeLEDate,
+	"leldate":    TypeLELDate,
+	"leqdate":    TypeLEQDate,
+	"leqldate":   TypeLEQLDate,
+	"leqwdate":   TypeLEQWDate,
+	"leid3":      TypeLEID3,
 	"lestring16": TypeLEString16,
 
 	"melong":  TypeMELong,
 	"medate":  TypeMEDate,
 	"meldate": TypeMELDate,
 
-	"regex":    TypeRegex,
-	"search":   TypeSearch,
-	"default":  TypeDefault,
-	"clear":    TypeClear,
-	"name":     TypeName,
-	"use":      TypeUse,
-	"indirect": TypeIndirect,
-	"der":      TypeDER,
-	"guid":     TypeGUID,
+	"regex":       TypeRegex,
+	"search":      TypeSearch,
+	"default":     TypeDefault,
+	"clear":       TypeClear,
+	"name":        TypeName,
+	"use":         TypeUse,
+	"indirect":    TypeIndirect,
+	"der":         TypeDER,
+	"guid":        TypeGUID,
 	"offset":      TypeOffset,
 	"octal":       TypeOctal,
 	"lemsdosdate": TypeLEMSDOSDate,
@@ -288,10 +288,7 @@ func parseLine(line string, lineNo int) (*MagicEntry, error) {
 		entry.Offset = int32(offset)
 		// Detect negative offset (from end of file, like C's OFFNEGATIVE)
 		// Strip leading & for relative offset check
-		rawOff := offsetStr
-		if strings.HasPrefix(rawOff, "&") {
-			rawOff = rawOff[1:]
-		}
+		rawOff := strings.TrimPrefix(offsetStr, "&")
 		if strings.HasPrefix(rawOff, "-") {
 			entry.Flag |= FlagNegative
 		}

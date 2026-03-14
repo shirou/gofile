@@ -283,16 +283,16 @@ func (m *Matcher) processContinuations(out *strings.Builder, buf []byte, entries
 						}
 					}
 					// Handle ": " prefix: replace entire previous output with specific identification.
-				// In OLE2/CDF magic rules, ": Type" means "this is a more specific identification
-				// that replaces the generic type". C's file handles this via a dedicated CDF parser.
-				if strings.HasPrefix(useResult, ": ") {
-					out.Reset()
-					out.WriteString(useResult[2:])
-				} else if hasBackspace || (len(useResult) > 0 && (useResult[0] == ',' || useResult[0] == '.' || useResult[0] == ';' || useResult[0] == ':')) {
-					out.WriteString(useResult)
-				} else {
-					appendDesc(out, useResult)
-				}
+					// In OLE2/CDF magic rules, ": Type" means "this is a more specific identification
+					// that replaces the generic type". C's file handles this via a dedicated CDF parser.
+					if strings.HasPrefix(useResult, ": ") {
+						out.Reset()
+						out.WriteString(useResult[2:])
+					} else if hasBackspace || (len(useResult) > 0 && (useResult[0] == ',' || useResult[0] == '.' || useResult[0] == ';' || useResult[0] == ':')) {
+						out.WriteString(useResult)
+					} else {
+						appendDesc(out, useResult)
+					}
 					levels[cl] = levelState{matched: true, matchedOffset: useBase, siblingMatch: true}
 					score++
 				}
@@ -463,7 +463,7 @@ func (m *Matcher) tryMatch(buf []byte, entry *MagicEntry, baseOffset int) (bool,
 	}
 
 	// Calculate offset after match (before date formatting which changes IsString)
-	matchEnd := offset
+	var matchEnd int
 	if isDateType(entry.Type) {
 		matchEnd = offset + typeSize(entry.Type)
 	} else if val.IsString {
@@ -505,9 +505,7 @@ func (m *Matcher) tryMatch(buf []byte, entry *MagicEntry, baseOffset int) (bool,
 func (m *Matcher) tryMatchRegex(buf []byte, offset int, entry *MagicEntry) (bool, Value, int) {
 	pattern := string(entry.Value.Str)
 	// Strip leading = if present
-	if strings.HasPrefix(pattern, "=") {
-		pattern = pattern[1:]
-	}
+	pattern = strings.TrimPrefix(pattern, "=")
 	// Enable multiline mode (like C's REG_NEWLINE) so ^ matches at line boundaries
 	if strings.Contains(pattern, "^") {
 		pattern = "(?m)" + pattern

@@ -73,8 +73,8 @@ func buildELF64(eType uint16, opts ...elfBuildOpt) []byte {
 	buf[5] = elfDATA2LSB
 	buf[6] = 1 // EV_CURRENT
 	bo.PutUint16(buf[16:], eType)
-	bo.PutUint16(buf[18:], 0x3E)  // EM_X86_64
-	bo.PutUint32(buf[20:], 1)     // EV_CURRENT
+	bo.PutUint16(buf[18:], 0x3E) // EM_X86_64
+	bo.PutUint32(buf[20:], 1)    // EV_CURRENT
 	bo.PutUint64(buf[32:], uint64(phdrStart))
 	bo.PutUint64(buf[40:], uint64(shdrStart))
 	bo.PutUint16(buf[52:], 64) // e_ehsize
@@ -105,14 +105,14 @@ func buildELF64(eType uint16, opts ...elfBuildOpt) []byte {
 		copy(buf[dataOff:], o.data)
 		extraOff += len(o.data)
 
-		bo.PutUint32(buf[off:], o.phType)   // p_type
-		bo.PutUint32(buf[off+4:], 0)        // p_flags
-		bo.PutUint64(buf[off+8:], uint64(dataOff))  // p_offset
-		bo.PutUint64(buf[off+16:], 0)       // p_vaddr
-		bo.PutUint64(buf[off+24:], 0)       // p_paddr
+		bo.PutUint32(buf[off:], o.phType)               // p_type
+		bo.PutUint32(buf[off+4:], 0)                    // p_flags
+		bo.PutUint64(buf[off+8:], uint64(dataOff))      // p_offset
+		bo.PutUint64(buf[off+16:], 0)                   // p_vaddr
+		bo.PutUint64(buf[off+24:], 0)                   // p_paddr
 		bo.PutUint64(buf[off+32:], uint64(len(o.data))) // p_filesz
 		bo.PutUint64(buf[off+40:], uint64(len(o.data))) // p_memsz
-		bo.PutUint64(buf[off+48:], 4)       // p_align
+		bo.PutUint64(buf[off+48:], 4)                   // p_align
 		phIdx++
 	}
 
@@ -132,8 +132,8 @@ func buildELF64(eType uint16, opts ...elfBuildOpt) []byte {
 		if nameOff, ok := sectionNames[i]; ok {
 			bo.PutUint32(buf[off:], nameOff) // sh_name
 		}
-		bo.PutUint32(buf[off+4:], o.shType)          // sh_type
-		bo.PutUint64(buf[off+24:], uint64(dataOff))   // sh_offset
+		bo.PutUint32(buf[off+4:], o.shType)             // sh_type
+		bo.PutUint64(buf[off+24:], uint64(dataOff))     // sh_offset
 		bo.PutUint64(buf[off+32:], uint64(len(o.data))) // sh_size
 		shIdx++
 	}
@@ -176,10 +176,6 @@ func withDynamic(entries [][2]uint64) elfBuildOpt {
 		bo.PutUint64(data[off+8:], e[1])
 	}
 	return elfBuildOpt{kind: optPhdr, phType: ptDYNAMIC, data: data}
-}
-
-func withNote(name string, ntype uint32, desc []byte) elfBuildOpt {
-	return elfBuildOpt{kind: optPhdr, phType: ptNOTE, data: buildNote(name, ntype, desc)}
 }
 
 func withNoteSection(name string, ntype uint32, desc []byte) elfBuildOpt {

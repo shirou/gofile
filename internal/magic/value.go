@@ -432,7 +432,7 @@ func isSpace(b byte) bool {
 // and when the next pattern char is non-space, all remaining whitespace in data is consumed.
 // Returns the number of bytes consumed from data and whether the match succeeded.
 func matchStringWS(data, pattern []byte, flags uint32) (consumed int, matched bool) {
-	caseInsensitive := flags & (StrFlagIgnoreLower | StrFlagIgnoreUpper) != 0
+	caseInsensitive := flags&(StrFlagIgnoreLower|StrFlagIgnoreUpper) != 0
 	di := 0 // data index
 	pi := 0 // pattern index
 

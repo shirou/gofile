@@ -77,9 +77,10 @@ func looksLikeJSON(data []byte) bool {
 			continue
 		}
 		if inString {
-			if chunk[i] == '\\' {
+			switch chunk[i] {
+			case '\\':
 				escaped = true
-			} else if chunk[i] == '"' {
+			case '"':
 				inString = false
 			}
 			continue
